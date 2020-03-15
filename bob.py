@@ -44,55 +44,6 @@ def add_placeholder_value(data_frame, placeholder, value):
         data_frame[placeholder] = [value]
 
 
-def remove_optional_placeholder(command_fromat_string, placeholder, opener="\{", closer="\}"):
-    def _flatten_list(items):
-        rt = []
-        for i in items:
-            if isinstance(i, list):
-                rt.extend(_flatten_list(i))
-            else:
-                rt.append(i)
-        return ''.join(rt)
-
-    def _remove_optional_placeholder(items, placeholder):
-        result = []
-        if isinstance(items, str):
-            return items if placeholder not in items.lower() else []
-        else:
-            for item in items:
-                sub_items = _remove_optional_placeholder(item, placeholder)
-                if (isinstance(item, str) or isinstance(item, bytes)) and not sub_items:
-                    # if there is a string in this list which contains the placeholder, do not include the list into
-                    # the result
-                    return []
-                elif sub_items:
-                    result.append(sub_items)
-            return result
-    # Definition and replacement of custom opener, closer and whitespace within command_format_string
-    # to mitigate parsing issues
-    tmp_opener = '²'; tmp_closer = '³'; tmp_whitespace = 'π'
-    command_format_string = command_fromat_string.\
-        replace(' ', tmp_whitespace).replace(opener, tmp_opener).replace(closer, tmp_closer)
-
-    # Splitting command format string into lists, removing optional and flatten list again
-    enclosed = Forward()
-    nestedParens = nestedExpr(tmp_opener, tmp_closer, content=enclosed)
-    enclosed << (Combine(OneOrMore(Word(printables + tmp_whitespace))) | nestedParens)
-    return _flatten_list(
-        _remove_optional_placeholder(
-            enclosed.parseString(command_format_string).asList(), placeholder.lower())).replace(tmp_whitespace, ' ')
-
-
-def remove_optional_placeholders(command_format_string, placeholders, data_keys):
-    for placeholder in placeholders:
-        if placeholder in command_format_string and placeholder.lower() not in data_keys:
-            command_format_string = remove_optional_placeholder(command_format_string, "<" + placeholder + ">")
-            if len(command_format_string) <= len(command_format_string):
-                return
-            placeholders.remove(placeholder)
-    return command_format_string
-
-
 def transform_data(command_format_string, placeholders, data_keys, filter_query):
     # Remove unused data
     if command_format_string:
@@ -289,22 +240,17 @@ if profile_path:
         logger.error(e)
         sys.exit(1)
 
-# Error - --set | --import overwrites profile definition of PLACEHOLDER(s) -- only when in use (found in command_format)
-
 # Retrieve data keys
 data_keys = {data_key.lower() for data_key in data.keys()}
 
 placeholders = []
 if command_format_string:
     # Parse placeholders from command format string
-    placeholders = set(placeholder.lower() for placeholder in re.findall("<(\w+)>", command_format_string))
-    # Remove optional placeholders without any associated data from command format string
-    command_format_string = remove_optional_placeholders(command_format_string, placeholders, data_keys)
-    if not command_format_string:
-        logger.error("ERROR: Unset placeholder in command string!")
-        sys.exit(1)
-    # Refresh placeholders since some were probably removed
-    placeholders = set(placeholder.lower() for placeholder in re.findall("<(\w+)>", command_format_string))
+    placeholders = set(placeholder for placeholder in re.findall("<(\w+)>", command_format_string))
+    for placeholder in placeholders:
+        if placeholder.lower() not in data_keys:
+            logger.error("ERROR: Unset placeholder <{}> in command string!".format(placeholder))
+            sys.exit(1)
 
 data_frame = transform_data(command_format_string, placeholders, data_keys, arguments.filter)
 if arguments.command_format_string or arguments.command_format_file:
