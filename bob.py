@@ -266,22 +266,23 @@ if profile_path:
         # we change the working directory to the path in which the profile.py is located.
         current_working_directory = os.getcwd()
         os.chdir(profile_path)
-        profile = importlib.import_module("profile")
+        profile = __import__("profile").Profile()
         os.chdir(current_working_directory)
 
         # Add all variables (aka placeholders) and values found in profile.py to the data map
         for placeholder in [item for item in dir(profile) if not item.startswith("__")]:
-            print(placeholder)
+            if placeholder[0].isupper():
+                # ignore classes
+                continue
             if placeholder.lower() in data:
                 logger.error("ERROR: The specified placeholder '{}' is already defined in your profile!")
                 sys.exit(1)
-            element = vars(profile)[placeholder]
-            if element is list:
+            element = getattr(profile, placeholder).getElement()
+            if isinstance(element, list):
                 for value in element:
-                    add_placeholder_value(data, placeholder.lower(), value)
+                    add_placeholder_value(data, placeholder.lower(), value.getValue())
             else:
-                value = element
-                add_placeholder_value(data, placeholder.lower(), value)
+                add_placeholder_value(data, placeholder.lower(), element)
     except Exception as e:
         # Warning - profile file does not have the correct format
         logger.error("ERROR: Loading profile failed!")
