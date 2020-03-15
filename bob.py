@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import argparse
 import csv
-import importlib
 import re
 from pathlib import Path
 import logging
@@ -10,7 +9,6 @@ import sys
 import itertools
 
 import pandas as pd
-from pyparsing import Forward, nestedExpr, Combine, OneOrMore, Word, printables
 
 app_name = "bob"
 app_version = "0.8"
@@ -131,14 +129,12 @@ if command_format_file:
     elif not os.path.exists(os.path.join(home_config_command_format_file_path, command_format_file)):
         command_format_string = os.path.join(home_config_command_format_file_path, command_format_file)
     else:
-        # Error - command format file does not exist
-        logger.error("ERROR: Loading command format file failed!")
+        logger.error("ERROR: Loading command file failed! The file {} was not found!".format(command_format_file))
         sys.exit(1)
 
 import_file = arguments.import_file
 if import_file and not os.path.exists(import_file):
-    # Error - import file does not exist
-    logger.error("ERROR: Loading import file failed!")
+    logger.error("ERROR: Loading import file failed! The file {} was not found!".format(import_file))
     sys.exit(1)
 
 profile_path = ""
@@ -147,7 +143,7 @@ if os.path.isfile(app_config_profile):
 elif os.path.isfile(home_config_profile):
     profile_path = home_config_path
 else:
-    logger.warning("WARNING: Loading profile failed!")
+    logger.warning("WARNING: Loading profile failed! File not found!")
 
 # Map of placeholders with value lists e.g. { 'PLACEHOLDER-1': ('a','b','c'), 'PLACEHOLDER-2': ('d') }
 data = {}
@@ -159,7 +155,7 @@ for placeholder_value in arguments.data_set:
     string_sep_pos = placeholder_value.find("=")
     file_sep_pos = placeholder_value.find(":")
     if (string_sep_pos <= 0 and file_sep_pos <= 0) or (string_sep_pos > 0 and file_sep_pos > 0):
-        logger.error("ERROR: Invalid data set!")
+        logger.error("ERROR: Parsing '{}' failed! Invalid format!".format(placeholder_value))
         parser.print_usage()
         sys.exit(1)
     is_value_sep = string_sep_pos > 0
@@ -171,20 +167,17 @@ for placeholder_value in arguments.data_set:
         else:
             placeholder, file = placeholder_value.split(sep)
             if not os.path.isfile(file):
-                # Error - file does not exist
-                logger.error("ERROR: Invalid data set!")
+                logger.error("ERROR: Loading placeholder value(s) for '{}' failed! The file {} was not found!".format(placeholder, file))
                 sys.exit(1)
             try:
                 with open(file) as f:
                     for value in f.read().splitlines():
                         add_placeholder_value(data, placeholder.lower(), value)
             except:
-                # Error - processing file failed
-                logger.error("ERROR: Invalid data set!")
+                logger.error("ERROR: Loading placeholder value(s) for '{}' failed! The file {} could not be processed!".format(placeholder, file))
                 sys.exit(1)
     except:
-        logger.error("ERROR: Invalid data set!")
-        parser.print_usage()
+        logger.error("ERROR: Loading placeholder value '{}' failed!".format(placeholder_value))
         sys.exit(1)
 
 # Load data from file given via --import argument
@@ -196,8 +189,7 @@ if import_file:
                 for placeholder in line.keys():
                     add_placeholder_value(data, placeholder.lower(), line[placeholder])
     except:
-        # Error - import file does not have the correct format
-        logger.error("ERROR: Loading import file failed!")
+        logger.error("ERROR: Loading import file failed! The file {} has an invalid format!".format(import_file))
         sys.exit(1)
 
 # Load command format string from file given via --command-format-file
@@ -206,7 +198,7 @@ if command_format_file:
         with open(command_format_file) as f:
             command_format_string = f.readline()
     except:
-        logger.error("ERROR: Loading command file failed!")
+        logger.error("ERROR: Loading command file failed! The file {} could not be processed!".format(command_format_file))
         sys.exit(1)
 
 if profile_path:
@@ -235,9 +227,7 @@ if profile_path:
             else:
                 add_placeholder_value(data, placeholder.lower(), element)
     except Exception as e:
-        # Warning - profile file does not have the correct format
-        logger.error("ERROR: Loading profile failed!")
-        logger.error(e)
+        logger.error("ERROR: Loading profile failed! The file has an invalid format!")
         sys.exit(1)
 
 # Retrieve data keys
@@ -249,7 +239,7 @@ if command_format_string:
     placeholders = set(placeholder for placeholder in re.findall("<(\w+)>", command_format_string))
     for placeholder in placeholders:
         if placeholder.lower() not in data_keys:
-            logger.error("ERROR: Unset placeholder <{}> in command string!".format(placeholder))
+            logger.error("ERROR: Generating command(s) failed! The placeholder <{}> has no associated data!".format(placeholder))
             sys.exit(1)
 
 data_frame = transform_data(command_format_string, placeholders, data_keys, arguments.filter)
