@@ -122,15 +122,13 @@ def load_profile(file_path):
     return None
 
 
-def get_command_format_path():
-    command_format_file_path = ""
+def get_command_template_paths():
+    command_format_file_paths = []
+    if os.path.exists(os.path.join(home_config_command_format_file_path)):
+        command_format_file_paths.append(os.path.join(home_config_command_format_file_path))
     if os.path.exists(os.path.join(app_config_command_format_file_path)):
-        command_format_file_path = os.path.join(app_config_command_format_file_path)
-    elif not os.path.exists(os.path.join(home_config_command_format_file_path)):
-        command_format_file_path = os.path.join(home_config_command_format_file_path)
-    else:
-        logger.warning("WARNING: Loading template folder failed! Directory not found!")
-    return command_format_file_path
+        command_format_file_paths.append(os.path.join(app_config_command_format_file_path))
+    return command_format_file_paths
 
 
 def get_reserved_placeholder_values(profile):
@@ -149,21 +147,29 @@ def import_data_file(import_file_path, data, delimiter):
                 add_placeholder_value(data, placeholder.lower(), line[placeholder])
 
 
-def get_command_templates(command_format_file_path):
+def get_command_template_path(command_template_paths, command_template_name):
+    for command_template_path in command_template_paths:
+        command_template_file = os.path.join(command_template_path, command_template_name)
+        if os.path.exists(command_template_file):
+           return command_template_path
+    return None
+
+
+def get_command_template_names(command_template_paths):
     command_format_files = []
-    for r, d, f in os.walk(command_format_file_path):
-        relpath = r[len(command_format_file_path) + 1:]
-        for file in f:
-            command_format_files.append(os.path.join(relpath, file))
-    return command_format_files
+    for command_format_file_path in command_template_paths:
+        for r, d, f in os.walk(command_format_file_path):
+            relpath = r[len(command_format_file_path) + 1:]
+            for file in f:
+                command_format_files.append(os.path.join(relpath, file))
+    return list(set(command_format_files))
 
 
 def bob_command_template_completer(prefix, parsed_args, **kwargs):
-    command_format_file_path = get_command_format_path()
-    if command_format_file_path:
-        return get_command_templates(command_format_file_path)
-    else:
+    command_template_paths = get_command_template_paths()
+    if not command_template_paths:
         return None
+    return get_command_template_names(command_template_paths)
 
 
 # Always look into the current working directory first when importing modules
@@ -202,7 +208,7 @@ parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='impo
                          "The file should start with a header which specifies the placeholders. "
                          "The delimiter can be changed in the profile (default=\\t). ")
 parser.add_argument('-t', '--command-template', action="store", metavar="FILE",
-                    dest='command_format_file',
+                    dest='command_template_name',
                     help="The format of the command as specified by the template.")\
     .completer = bob_command_template_completer
 parser.add_argument('-l', '--command-template-list', action="store_true",
@@ -214,29 +220,31 @@ parser.add_argument('-f', '--filter', action="store", metavar="STRING", dest='fi
 argcomplete.autocomplete(parser)
 arguments = parser.parse_args()
 
-command_format_file_path = get_command_format_path()
+command_template_paths = get_command_template_paths()
 if arguments.command_format_file_list:
     if len(sys.argv) > 2:
         logger.error("ERROR: --command-template-list can not be used with any other options!")
         sys.exit(1)
-    command_templates = get_command_templates(command_format_file_path)
-    if not command_templates:
+    command_template_names = get_command_template_names(command_template_paths)
+    if not command_template_names:
         logger.warning("WARNING: No command templates defined!")
-    for command_format_file in command_templates:
-        print(command_format_file)
+    for command_template_name in command_template_names:
+        print(command_template_name)
     sys.exit(0)
 
 command_format_string = arguments.command_format_string
-command_format_file = arguments.command_format_file
-if command_format_string and command_format_file:
-    logger.error("ERROR: --command-string can not be used in conjunction with command-file!")
+command_template_name = arguments.command_template_name
+if command_format_string and command_template_name:
+    logger.error("ERROR: --command-string can not be used in conjunction with command-template!")
     sys.exit(1)
 
-if command_format_file:
-    if not command_format_file_path or not os.path.exists(os.path.join(command_format_file_path, command_format_file)):
-        logger.error("ERROR: Loading command file failed! The file {} was not found!".format(command_format_file))
+command_template_file = ""
+if command_template_name:
+    command_template_path = get_command_template_path(command_template_paths, command_template_name)
+    if not command_template_path:
+        logger.error("ERROR: Loading command file failed! The command template {} was not found!".format(command_template_name))
         sys.exit(1)
-    command_format_file = os.path.join(command_format_file_path, command_format_file)
+    command_template_file = os.path.join(command_template_path, command_template_name)
 
 import_file = arguments.import_file
 if import_file and not os.path.exists(import_file):
@@ -292,13 +300,13 @@ if import_file:
         logger.error("ERROR: Loading import file failed! The file {} has an invalid format!".format(import_file))
         sys.exit(1)
 
-# Load command format string from file given via --command-format-file
-if command_format_file:
+# Load command template from file given via --command-format-template
+if command_template_file:
     try:
-        with open(command_format_file) as f:
+        with open(command_template_file) as f:
             command_format_string = f.read()
     except:
-        logger.error("ERROR: Loading command file failed! The file {} could not be processed!".format(command_format_file))
+        logger.error("ERROR: Loading command template failed! The template {} could not be processed!".format(command_template_name))
         sys.exit(1)
 
 placeholders = []
