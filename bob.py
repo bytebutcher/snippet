@@ -141,9 +141,9 @@ def get_reserved_placeholder_values(profile):
     return reserved_placeholders
 
 
-def import_data_file(import_file_path, data):
+def import_data_file(import_file_path, data, delimiter):
     with open(import_file_path, 'r') as f:
-        reader = csv.DictReader(f)
+        reader = csv.DictReader(f, delimiter=delimiter, quoting=csv.QUOTE_NONE)
         for line in reader:
             for placeholder in line.keys():
                 add_placeholder_value(data, placeholder.lower(), line[placeholder])
@@ -198,7 +198,9 @@ parser.add_argument('-s', '--set', action="append", metavar="PLACEHOLDER=VALUE |
                     help="The value(s) used to replace the placeholder found in the command format. "
                          "Values can either be directly specified or loaded from file.")
 parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='import_file',
-                    help="The value(s) used to replace the placeholder found in the command format.")
+                    help="The value(s) used to replace the placeholder found in the command format. "
+                         "The file should start with a header which specifies the placeholders. "
+                         "The delimiter can be changed in the profile (default=\\t). ")
 parser.add_argument('-t', '--command-template', action="store", metavar="FILE",
                     dest='command_format_file',
                     help="The format of the command as specified by the template.")\
@@ -285,7 +287,7 @@ if arguments.data_set:
 # Load data from file given via --import argument
 if import_file:
     try:
-        import_data_file(import_file, data)
+        import_data_file(import_file, data, profile.csv_delimiter if profile else '\t')
     except:
         logger.error("ERROR: Loading import file failed! The file {} has an invalid format!".format(import_file))
         sys.exit(1)

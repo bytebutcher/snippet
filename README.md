@@ -3,45 +3,57 @@ bob the command builder - generating commands from data
 
 ## Usage
 
+We start with the simplest (and probably most boring) example of how to use bob:  
 ```
-usage: bob [-h] [-c COMMAND_FORMAT_STRING]
-           [-s PLACEHOLDER=VALUE | -s PLACEHOLDER:FILE] [-i FILE] [-t FILE]
-           [-l] [-f STRING]
+$ bob -c "echo '<arg1>'" -s arg1=bob 
+```
 
-Bob - the command builder
+The command above will return one simple line of output:
+```bash
+echo 'bob'
+```
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -c COMMAND_FORMAT_STRING, --command-string COMMAND_FORMAT_STRING
-                        The format of the command. The placeholders are
-                        identified by less than (<) and greater than (>)
-                        signs.
-  -s PLACEHOLDER=VALUE | -s PLACEHOLDER:FILE, --set PLACEHOLDER=VALUE | -s PLACEHOLDER:FILE
-                        The value(s) used to replace the placeholder found in
-                        the command format. Values can either be directly
-                        specified or loaded from file.
-  -i FILE, --import FILE
-                        The value(s) used to replace the placeholder found in
-                        the command format.
-  -t FILE, --command-template FILE
-                        The format of the command as specified by the
-                        template.
-  -l, --command-template-list
-                        Lists all available command templates.
-  -f STRING, --filter STRING
-                        The filter to include/exclude results (e.g. -f
-                        'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').
+That's indeed not very impressive. Let's look at another example.:
+```
+$ bob -c "echo '<arg1> - <arg2>'" -s arg1=bob -s "arg2=the command builder" -s "arg2=generating commands from data" 
+```
 
-Default placeholders:
+As you can see we specified multiple values for arg2. As a result bob will return the following lines:
+```
+echo 'bob - the command builder'
+echo 'bob - generating commands from data'
+```
 
-  <date>               current date %Y%m%d
-  <date_time>          current date and time %Y%m%d%H%M%S
+Lets create some file named input.txt and look at yet another example:
+```
+$ cat <<EOF > input.txt
+the command builder
+generating commands from data
+EOF
+$ bob -c "echo '<arg1> - <arg2>'" -s arg1=bob -s arg2:./input.txt 
+```
 
-Examples:
+As you can see you do not need to specify each and every value using the ```-s | --set``` operator but can load them from a file instead.
 
-  bob -s target=localhost     -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
-  bob -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
-   
+Data can also be imported from a csv-file whereby values must be separated by a tab character (which can be changed in ```.bob/profile.py```):
+```
+$ cat input.csv
+arg1    arg2
+bob     the command builder
+        generating commands from data
+
+$ bob -c "echo '<arg1> - <arg2>'" -i targets.csv 
+```
+
+In addition bob ships with a customizable set of default placeholders which can be directly used in your command (see ```.bob/profile.py``` for more information):
+```
+$ bob -c "echo '<arg1> - <arg2> - <date_time>'" -i targets.csv
+```
+
+If you happen to type the same command over and over again there is just another feature. Template-files:
+```
+$ echo -n "echo '<arg1> - <arg2> - <date_time>'" > .bob/templates/example
+$ bob -t example -i targets.csv
 ```
 
 ## Bash Completion

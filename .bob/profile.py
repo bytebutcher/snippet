@@ -3,6 +3,8 @@ from datetime import datetime
 
 class Profile():
 
+    csv_delimiter = '\t'
+
     class PlaceholderValue(object):
 
         def __init__(self, name, description, callback):
