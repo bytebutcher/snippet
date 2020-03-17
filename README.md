@@ -43,3 +43,13 @@ Examples:
   bob -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
    
 ```
+
+## Bash Completion
+To enable bash-completion add following line to your .bashrc:
+```buildoutcfg
+eval "$(register-python-argcomplete bob)"
+```
+Make sure that you link bob the executable accordingly:
+```buildoutcfg
+ln -s /path/to/bob.py /usr/bin/bob
+```

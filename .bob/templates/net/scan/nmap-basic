@@ -1,0 +1,2 @@
+nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>
+nmap -sU --top-ports 1000 <target> -oA nmap-udp-top_<target>_<date_time>

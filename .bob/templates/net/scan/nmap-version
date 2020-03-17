@@ -1,0 +1,1 @@
+nmap -sV -p <port> <target> -oA nmap-version_<target>_<date_time>

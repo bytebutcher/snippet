@@ -133,13 +133,11 @@ def get_command_format_path():
     return command_format_file_path
 
 
-def import_profile_placeholder_values(profile, data):
-    reserved_placeholders = []
+def get_reserved_placeholder_values(profile):
+    reserved_placeholders = {}
     for placeholder_value in profile.placeholder_values:
         placeholder_name = placeholder_value.name
-        if placeholder_name.lower() in data:
-            reserved_placeholders.append(placeholder_name)
-        add_placeholder_value(data, placeholder_name.lower(), placeholder_value.element())
+        add_placeholder_value(reserved_placeholders, placeholder_name.lower(), placeholder_value.element())
     return reserved_placeholders
 
 
@@ -161,6 +159,7 @@ def get_command_templates(command_format_file_path):
 
 
 def bob_command_template_completer(prefix, parsed_args, **kwargs):
+    command_format_file_path = get_command_format_path()
     if command_format_file_path:
         return get_command_templates(command_format_file_path)
     else:
@@ -176,8 +175,6 @@ profile = load_profile(get_profile_path())
 if profile is None:
     logger.error("ERROR: Loading profile failed! Invalid format!")
     sys.exit(1)
-
-command_format_file_path = get_command_format_path()
 
 parser = argparse.ArgumentParser(
     description='Bob - the command builder',
@@ -215,7 +212,7 @@ parser.add_argument('-f', '--filter', action="store", metavar="STRING", dest='fi
 argcomplete.autocomplete(parser)
 arguments = parser.parse_args()
 
-
+command_format_file_path = get_command_format_path()
 if arguments.command_format_file_list:
     if len(sys.argv) > 2:
         logger.error("ERROR: --command-template-list can not be used with any other options!")
@@ -246,6 +243,10 @@ if import_file and not os.path.exists(import_file):
 
 # Map of placeholders with value lists e.g. { 'PLACEHOLDER-1': ('a','b','c'), 'PLACEHOLDER-2': ('d') }
 data = {}
+
+# Get reserved placeholders as defined within the profile
+reserved_placeholder_values = get_reserved_placeholder_values(profile)
+
 # Load data given via --set argument
 if arguments.data_set:
     for placeholder_value in arguments.data_set:
@@ -298,13 +299,24 @@ if command_format_file:
         logger.error("ERROR: Loading command file failed! The file {} could not be processed!".format(command_format_file))
         sys.exit(1)
 
-# Retrieve data keys
-data_keys = {data_key.lower() for data_key in data.keys()}
-
 placeholders = []
 if command_format_string:
     # Parse placeholders from command format string
-    placeholders = set(placeholder for placeholder in re.findall("<(\w+)>", command_format_string))
+    placeholders = list(set(placeholder for placeholder in re.findall("<(\w+)>", command_format_string)))
+
+if profile:
+    reserved_placeholders = [key for key in data.keys() if key.lower() in reserved_placeholder_values]
+    if reserved_placeholders:
+        logger.error("ERROR: {} is/are already defined in your profile!".format(', '.join(["<" + item + ">" for item in reserved_placeholders])))
+        sys.exit(1)
+    for reserved_placeholder in reserved_placeholder_values:
+        placeholders.append(reserved_placeholder)
+        data[reserved_placeholder] = reserved_placeholder_values[reserved_placeholder]
+
+# Retrieve data keys
+data_keys = {data_key.lower() for data_key in data.keys()}
+
+if placeholders:
     unset_placeholders = []
     for placeholder in placeholders:
         if placeholder.lower() not in data_keys:
@@ -312,12 +324,6 @@ if command_format_string:
     if unset_placeholders:
         logger.error(
             "ERROR: Generating command(s) failed! No data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
-        sys.exit(1)
-
-if profile:
-    reserved_placeholders = import_profile_placeholder_values(profile, data)
-    if reserved_placeholders:
-        logger.error("ERROR: {} is/are already defined in your profile!").format(', '.join(["<" + item + ">" for item in reserved_placeholders]))
         sys.exit(1)
 
 data_frame = transform_data(command_format_string, [placeholder.lower() for placeholder in placeholders], data_keys)
