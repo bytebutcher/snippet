@@ -1,0 +1,1 @@
+nikto -host <target> -port <port> | tee nikto-basic-<target>_<port>_<date_time>.log

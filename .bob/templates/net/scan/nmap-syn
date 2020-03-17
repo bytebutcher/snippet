@@ -1,0 +1,1 @@
+nmap -vvv -sS -p <ports> <target> -oA nmap-syn-<target>_ports-<ports>_<date_time>

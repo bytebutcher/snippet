@@ -325,7 +325,7 @@ if placeholders:
             unset_placeholders.append(placeholder)
     if unset_placeholders:
         logger.error(
-            "ERROR: Generating command(s) failed! No data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
+            "ERROR: Generating command(s) failed! Missing {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
         sys.exit(1)
 
 data_frame = transform_data(command_format_string, [placeholder.lower() for placeholder in placeholders], data_keys)
