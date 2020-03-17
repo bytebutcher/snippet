@@ -52,11 +52,15 @@ $ bob -c "echo '<arg1> - <arg2> - <date_time>'" -i targets.csv
 
 If you happen to type the same command over and over again there is just another feature. Template-files:
 ```
-$ echo -n "echo '<arg1> - <arg2> - <date_time>'" > .bob/templates/example
+$ mkdir ~/.bob/templates
+$ echo -n "echo '<arg1> - <arg2> - <date_time>'" > ~/.bob/templates/example
 $ bob -t example -i targets.csv
 ```
 
-## Bash Completion
+You can list all available templates using the ```-l | --list-templates``` parameter.
+However, if you have bash-completion enabled you also can press <TAB> twice to autocomplete 
+template names when using the ```-t | --template``` parameter. 
+
 To enable bash-completion add following line to your .bashrc:
 ```buildoutcfg
 eval "$(register-python-argcomplete bob)"

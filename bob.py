@@ -207,13 +207,13 @@ parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='impo
                     help="The value(s) used to replace the placeholder found in the command format. "
                          "The file should start with a header which specifies the placeholders. "
                          "The delimiter can be changed in the profile (default=\\t). ")
-parser.add_argument('-t', '--command-template', action="store", metavar="FILE",
+parser.add_argument('-t', '--template', action="store", metavar="FILE",
                     dest='command_template_name',
-                    help="The format of the command as specified by the template.")\
+                    help="The template to use as command format.")\
     .completer = bob_command_template_completer
-parser.add_argument('-l', '--command-template-list', action="store_true",
-                    dest='command_format_file_list',
-                    help="Lists all available command templates.")
+parser.add_argument('-l', '--list-templates', action="store_true",
+                    dest='list_templates',
+                    help="Lists all available templates.")
 parser.add_argument('-f', '--filter', action="store", metavar="STRING", dest='filter',
                     help="The filter to include/exclude results (e.g. -f 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
 
@@ -221,13 +221,13 @@ argcomplete.autocomplete(parser)
 arguments = parser.parse_args()
 
 command_template_paths = get_command_template_paths()
-if arguments.command_format_file_list:
+if arguments.list_templates:
     if len(sys.argv) > 2:
-        logger.error("ERROR: --command-template-list can not be used with any other options!")
+        logger.error("ERROR: --list-templates can not be used with any other options!")
         sys.exit(1)
     command_template_names = get_command_template_names(command_template_paths)
     if not command_template_names:
-        logger.warning("WARNING: No command templates defined!")
+        logger.warning("WARNING: No templates found!")
     for command_template_name in command_template_names:
         print(command_template_name)
     sys.exit(0)
