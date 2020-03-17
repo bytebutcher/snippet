@@ -5,12 +5,13 @@ class Profile():
 
     class PlaceholderValue(object):
 
-        def __init__(self, description, callback):
+        def __init__(self, name, description, callback):
+            self.name = name
             self.description = description
-            self.callback = callback
+            self.element = lambda: callback()
 
-        def getElement(self):
-            return self.callback()
-
-    date = PlaceholderValue("current date %Y%m%d", lambda: datetime.now().strftime("%Y%m%d"))
-    date_time = PlaceholderValue("current date and time %Y%m%d%H%M%S", lambda: datetime.now().strftime("%Y%m%d%H%M%S"))
+    def __init__(self):
+        self.placeholder_values = [
+            Profile.PlaceholderValue("date", "current date %Y%m%d", lambda: datetime.now().strftime("%Y%m%d")),
+            Profile.PlaceholderValue("date_time", "current date and time %Y%m%d%H%M%S", lambda: datetime.now().strftime("%Y%m%d%H%M%S"))
+        ]
