@@ -1,5 +1,5 @@
-#!/usr/bin/python3
-import argparse
+#!/usr/bin/env python3
+import argcomplete, argparse
 import csv
 import re
 from pathlib import Path
@@ -8,7 +8,12 @@ import os
 import sys
 import itertools
 
-import pandas as pd
+try:
+    import pandas as pd
+except:
+    sys.stderr.write("Missing python3 package pandas!")
+    sys.stderr.write("Please install requirements using 'python3 install -r requirements.txt")
+    sys.exit(1)
 
 app_name = "bob"
 app_version = "0.8"
@@ -83,17 +88,41 @@ def transform_data(command_format_string, placeholders, data_keys):
     return data_frame.astype(str)
 
 
+def get_profile_path():
+    profile_path = ""
+    if os.path.isfile(app_config_profile):
+        profile_path = app_config_path
+    elif os.path.isfile(home_config_profile):
+        profile_path = home_config_path
+    else:
+        logger.warning("WARNING: Loading profile failed! File not found!")
+    return profile_path
+
+
 def load_profile(file_path):
     # Since the path may contain special characters which can not be processed by the __import__ function
     # we change the working directory to the path in which the profile.py is located.
-    try:
-        current_working_directory = os.getcwd()
-        os.chdir(file_path)
-        profile = __import__("profile").Profile()
-        os.chdir(current_working_directory)
-        return profile
-    except:
-        return None
+    if file_path:
+        try:
+            current_working_directory = os.getcwd()
+            os.chdir(file_path)
+            profile = __import__("profile").Profile()
+            os.chdir(current_working_directory)
+            return profile
+        except:
+            pass
+    return None
+
+
+def get_command_format_path():
+    command_format_file_path = ""
+    if os.path.exists(os.path.join(app_config_command_format_file_path)):
+        command_format_file_path = os.path.join(app_config_command_format_file_path)
+    elif not os.path.exists(os.path.join(home_config_command_format_file_path)):
+        command_format_file_path = os.path.join(home_config_command_format_file_path)
+    else:
+        logger.warning("WARNING: Loading template folder failed! Directory not found!")
+    return command_format_file_path
 
 
 def import_profile_placeholder_values(profile, data):
@@ -114,25 +143,33 @@ def import_data_file(import_file_path, data):
                 add_placeholder_value(data, placeholder.lower(), line[placeholder])
 
 
+def get_command_templates(command_format_file_path):
+    command_format_files = []
+    for r, d, f in os.walk(command_format_file_path):
+        relpath = r[len(command_format_file_path) + 1:]
+        for file in f:
+            command_format_files.append(os.path.join(relpath, file))
+    return command_format_files
+
+
+def bob_command_template_completer(prefix, parsed_args, **kwargs):
+    if command_format_file_path:
+        return get_command_templates(command_format_file_path)
+    else:
+        return None
+
+
 # Always look into the current working directory first when importing modules
 sys.path.insert(0, '')
 
 logger = init_logger(app_name, "%(msg)s")
 
-profile = None
-profile_path = ""
-if os.path.isfile(app_config_profile):
-    profile_path = app_config_path
-elif os.path.isfile(home_config_profile):
-    profile_path = home_config_path
-else:
-    logger.warning("WARNING: Loading profile failed! File not found!")
+profile = load_profile(get_profile_path())
+if profile is None:
+    logger.error("ERROR: Loading profile failed! Invalid format!")
+    sys.exit(1)
 
-if profile_path:
-    profile = load_profile(profile_path)
-    if profile is None:
-        logger.error("ERROR: Loading profile failed! Invalid format!")
-        sys.exit(1)
+command_format_file_path = get_command_format_path()
 
 parser = argparse.ArgumentParser(
     description='Bob - the command builder',
@@ -146,13 +183,12 @@ Examples:
 
   bob -s target=localhost     -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
   bob -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
-
     """
 )
 parser.add_argument('-c', '--command-string', action="store", metavar="COMMAND_FORMAT_STRING",
                     dest='command_format_string',
-                    help="The format of the command."
-                         "(e.g. 'nmap -sV {TARGET} -p {PORTS}').")
+                    help="The format of the command. "
+                         "The placeholders are identified by less than (<) and greater than (>) signs.")
 parser.add_argument('-s', '--set', action="append", metavar="PLACEHOLDER=VALUE | -s PLACEHOLDER:FILE", dest='data_set',
                     help="The value(s) used to replace the placeholder found in the command format. "
                          "Values can either be directly specified or loaded from file.")
@@ -160,13 +196,28 @@ parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='impo
                     help="The value(s) used to replace the placeholder found in the command format.")
 parser.add_argument('-t', '--command-template', action="store", metavar="FILE",
                     dest='command_format_file',
-                    help="The format of the command as specified by the template.")
-parser.add_argument('-l', '--command-template-list', action="store_true", dest='command_template_list',
-                    help="Prints the names of all present command templates.")
+                    help="The format of the command as specified by the template.")\
+    .completer = bob_command_template_completer
+parser.add_argument('-l', '--command-template-list', action="store_true",
+                    dest='command_format_file_list',
+                    help="Lists all available command templates.")
 parser.add_argument('-f', '--filter', action="store", metavar="STRING", dest='filter',
                     help="The filter to include/exclude results (e.g. -f 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
 
+argcomplete.autocomplete(parser)
 arguments = parser.parse_args()
+
+
+if arguments.command_format_file_list:
+    if len(sys.argv) > 2:
+        logger.error("ERROR: --command-template-list can not be used with any other options!")
+        sys.exit(1)
+    command_templates = get_command_templates(command_format_file_path)
+    if not command_templates:
+        logger.warning("WARNING: No command templates defined!")
+    for command_format_file in command_templates:
+        print(command_format_file)
+    sys.exit(0)
 
 command_format_string = arguments.command_format_string
 command_format_file = arguments.command_format_file
@@ -175,13 +226,10 @@ if command_format_string and command_format_file:
     sys.exit(1)
 
 if command_format_file:
-    if os.path.exists(os.path.join(app_config_command_format_file_path, command_format_file)):
-        command_format_file = os.path.join(app_config_command_format_file_path, command_format_file)
-    elif not os.path.exists(os.path.join(home_config_command_format_file_path, command_format_file)):
-        command_format_file = os.path.join(home_config_command_format_file_path, command_format_file)
-    else:
+    if not command_format_file_path or not os.path.exists(os.path.join(command_format_file_path, command_format_file)):
         logger.error("ERROR: Loading command file failed! The file {} was not found!".format(command_format_file))
         sys.exit(1)
+    command_format_file = os.path.join(command_format_file_path, command_format_file)
 
 import_file = arguments.import_file
 if import_file and not os.path.exists(import_file):
