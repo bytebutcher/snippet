@@ -54,11 +54,19 @@ def add_placeholder_value(data_frame, placeholder, values):
 
 
 def transform_data(command_format_string, placeholders, data_keys):
+    """
+    Transforms the data from a map of placeholders with value lists into a data frame.
+    """
     if command_format_string:
         # Remove unused data
         for data_key in data_keys:
             if data_key not in placeholders:
                 data.pop(data_key, None)
+
+        # Remove duplicates
+        for key in data:
+            data[key] = set(data[key])
+
         # Create matrix from data e.g. (('a','d'), ('b','d'), ('c','d'))
         data_matrix = list(itertools.product(*[data[key] for key in data.keys()]))
 
