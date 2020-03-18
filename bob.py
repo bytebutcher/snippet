@@ -271,25 +271,26 @@ if arguments.data_set:
             sys.exit(1)
         is_value_sep = string_sep_pos > 0
         sep = "=" if is_value_sep else ":"
-        try:
-            if is_value_sep:
+        if is_value_sep:
+            try:
                 placeholder, value = placeholder_value.split(sep)
                 add_placeholder_value(data, placeholder.lower(), value)
-            else:
-                placeholder, file = placeholder_value.split(sep)
-                if not os.path.isfile(file):
-                    logger.error("ERROR: Loading placeholder value(s) for '{}' failed! The file {} was not found!".format(placeholder, file))
-                    sys.exit(1)
-                try:
-                    with open(file) as f:
-                        for value in f.read().splitlines():
-                            add_placeholder_value(data, placeholder.lower(), value)
-                except:
-                    logger.error("ERROR: Loading placeholder value(s) for '{}' failed! The file {} could not be processed!".format(placeholder, file))
-                    sys.exit(1)
-        except:
-            logger.error("ERROR: Loading placeholder value '{}' failed!".format(placeholder_value))
-            sys.exit(1)
+            except:
+                logger.error("ERROR: Loading placeholder value '{}' failed!".format(placeholder_value))
+                sys.exit(1)
+        else:
+            placeholder, file = placeholder_value.split(sep)
+            if not os.path.isfile(file):
+                logger.error("ERROR: Loading placeholder value(s) for '{}' failed! The file {} was not found!".format(placeholder, file))
+                sys.exit(1)
+
+            try:
+                with open(file) as f:
+                    for value in f.read().splitlines():
+                        add_placeholder_value(data, placeholder.lower(), value)
+            except:
+                logger.error("ERROR: Loading placeholder value(s) for '{}' failed! The file {} could not be processed!".format(placeholder, file))
+                sys.exit(1)
 
 
 # Load data from file given via --import argument
@@ -300,13 +301,13 @@ if import_file:
         logger.error("ERROR: Loading import file failed! The file {} has an invalid format!".format(import_file))
         sys.exit(1)
 
-# Load command template from file given via --command-format-template
+# Load template
 if command_template_file:
     try:
         with open(command_template_file) as f:
             command_format_string = f.read()
     except:
-        logger.error("ERROR: Loading command template failed! The template {} could not be processed!".format(command_template_name))
+        logger.error("ERROR: Loading template failed! The template {} could not be processed!".format(command_template_name))
         sys.exit(1)
 
 placeholders = []
