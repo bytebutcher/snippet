@@ -211,6 +211,10 @@ parser.add_argument('-t', '--template', action="store", metavar="FILE",
                     dest='command_template_name',
                     help="The template to use as command format.")\
     .completer = bob_command_template_completer
+parser.add_argument('-v', '--view-template', action="store_true",
+                    dest='view_template',
+                    help="View the template instead of using it as generator. Can only be used in combination with "
+                         "the --template argument.")
 parser.add_argument('-l', '--list-templates', action="store_true",
                     dest='list_templates',
                     help="Lists all available templates.")
@@ -222,9 +226,6 @@ arguments = parser.parse_args()
 
 command_template_paths = get_command_template_paths()
 if arguments.list_templates:
-    if len(sys.argv) > 2:
-        logger.error("ERROR: --list-templates can not be used with any other options!")
-        sys.exit(1)
     command_template_names = get_command_template_names(command_template_paths)
     if not command_template_names:
         logger.warning("WARNING: No templates found!")
@@ -235,7 +236,11 @@ if arguments.list_templates:
 command_format_string = arguments.command_format_string
 command_template_name = arguments.command_template_name
 if command_format_string and command_template_name:
-    logger.error("ERROR: --command-string can not be used in conjunction with command-template!")
+    logger.error("ERROR: --command-string can not be used in conjunction with --template!")
+    sys.exit(1)
+
+if arguments.view_template and not command_template_name:
+    logger.error("ERROR: --view-template must be used in combination with --template!")
     sys.exit(1)
 
 command_template_file = ""
@@ -305,10 +310,14 @@ if import_file:
 if command_template_file:
     try:
         with open(command_template_file) as f:
-            command_format_string = f.read()
+            command_format_string = os.sep.join(f.read().splitlines())
     except:
         logger.error("ERROR: Loading template failed! The template {} could not be processed!".format(command_template_name))
         sys.exit(1)
+
+    if arguments.view_template:
+        print(command_format_string)
+        sys.exit(0)
 
 placeholders = []
 if command_format_string:
