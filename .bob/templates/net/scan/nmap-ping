@@ -1,1 +1,1 @@
-nmap -vvv -sP <target> -oA nmap-ping_<target>_<date_time>
+nmap -vvv -sP <rhost> -oA nmap-ping_<rhost>_<date_time>

@@ -1,1 +1,1 @@
-nikto -host <target> -port <port> | tee nikto-basic-<target>_<port>_<date_time>.log
+nikto -host <rhost> -port <rport> | tee nikto-basic-<rhost>_<rport>_<date_time>.log
