@@ -35,7 +35,8 @@ $ bob -c "echo '<arg1> - <arg2>'" -s arg1=bob -s arg2:./input.txt
 
 As you can see you do not need to specify each and every value using the ```-s | --set``` operator but can load them from a file instead.
 
-Data can also be imported from a csv-file whereby values must be separated by a tab character (which can be changed in ```.bob/profile.py```):
+Data can also be imported from a csv-file using the ```-i | --import``` argument.
+Note, that values must be separated by a tab character (which can be changed in ```.bob/bob_profile.py```):
 ```
 $ cat input.csv
 arg1    arg2
@@ -43,30 +44,36 @@ bob     the command builder
         generating commands from data
 
 $ bob -c "echo '<arg1> - <arg2>'" -i input.csv 
+echo 'bob - the command builder'
+echo 'bob - generating commands from data'
 ```
 
-In addition bob ships with a customizable set of default placeholders which can be directly used in your command (see ```.bob/profile.py``` for more information):
+You can also import the command format or placeholder data from your environment by using the ```-e | --environment``` argument:
 ```
-$ bob -c "echo '<date_time>'" 
-```
-
-You can also use the ```--environment``` argument to import the command format or placeholder data from your environment:
-```
-$ export COMMAND_FORMAT="echo '<arg1> - <arg2> - <date_time>'"
+$ export COMMAND_FORMAT="echo '<arg1> - <arg2>'"
 $ export arg1=bob
 $ export arg2="\('the command builder' 'generating commands from data'\)"
 $ bob -e
+echo 'bob - the command builder'
+echo 'bob - generating commands from data'
 ```
 
-If you happen to type the same command over and over again there is just another feature. Template-files:
+In addition bob ships with a customizable set of preset placeholders which can be directly used in your command (see ```.bob/bob_profile.py``` for more information):
 ```
-$ mkdir ~/.bob/templates
+$ bob -c "echo '<date_time>'" 
+echo '20200322034102'
+```
+
+If you want to persist your command format you can add them to bob's template directory
+which can be easily accessed using the ```-t | --template``` argument:
+```
+$ mkdir -p ~/.bob/templates
 $ echo -n "echo '<arg1> - <arg2> - <date_time>'" > ~/.bob/templates/example
 $ bob -t example -i input.csv
 ```
 
 You can list all available templates using the ```-l | --list-templates``` parameter.
-However, if you have bash-completion enabled you also can press <TAB> twice to autocomplete 
+However, if you have bash-completion enabled you can also press <TAB> twice to autocomplete 
 template names when using the ```-t | --template``` parameter. 
 
 To enable bash-completion add following line to your .bashrc:

@@ -11,7 +11,6 @@ import os
 import sys
 import itertools
 
-from IPython.terminal.embed import InteractiveShellEmbed
 try:
     import pandas as pd
 except:
@@ -21,6 +20,7 @@ except:
 
 try:
     import IPython
+    from IPython.terminal.embed import InteractiveShellEmbed
 except:
     sys.stderr.write("Missing python3 package IPython! ")
     sys.stderr.write("Please install requirements using 'pip3 install -r requirements.txt" + os.linesep)
@@ -543,5 +543,5 @@ try:
         print(bob.list_options())
 except Exception as e:
     logger.error("ERROR: {}".format(e))
-    traceback.print_exc() # Uncomment this line for printing traceback
+    #traceback.print_exc() # Uncomment this line for printing traceback
     sys.exit(1)
