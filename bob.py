@@ -27,7 +27,7 @@ except:
     sys.exit(1)
 
 app_name = "bob"
-app_version = "0.9"
+app_version = "1.0b"
 
 # Configuration files
 # ===================
@@ -210,6 +210,8 @@ class CommandsBuilder(object):
     def get_placeholders(self):
         if self.command_format_string:
             return list(set(placeholder for placeholder in re.findall("<(\w+)>", self.command_format_string)))
+        else:
+            return []
 
     def transform_data(self, filter_string=None):
         """
@@ -305,10 +307,26 @@ class Bob(object):
             temporary_data[placeholder] = reserved_placeholder_values[placeholder]
         return temporary_data.to_data_frame()
 
+    def list_placeholders(self):
+        return CommandsBuilder(self.command_format_string, self.data, self.config).get_placeholders()
+
     def import_data_file(self, import_file_path, delimiter=None):
         if not delimiter:
             delimiter = self.config.profile.csv_delimiter if self.config.profile else '\t'
         self.data.import_from_file(import_file_path, delimiter)
+
+    def import_environment(self):
+        placeholders = [placeholder.lower() for placeholder in self.list_placeholders()]
+        reserved_placeholders = self.config.get_reserved_placeholder_values().keys()
+        for placeholder in placeholders:
+            if placeholder not in self.data and placeholder not in reserved_placeholders:
+                data = os.environ.get(placeholder)
+                if data:
+                    if data.startswith('\(') and data.endswith('\)'):
+                        for value in shlex.split(data[2:-2]):
+                            self.data.append(placeholder, value)
+                    else:
+                        self.data.append(placeholder, data)
 
     def build(self):
         return CommandsBuilder(self.command_format_string, self.data, self.config).build(self.filter_string)
@@ -343,8 +361,8 @@ Type '%help' for more information""".format(app_name=app_name, app_version=app_v
                         if arg in function_parameters_map:
                             try:
                                 function_parameters_map[arg].callback(*args[1:])
-                            except:
-                                logger.error("ERROR: {}".format(e))
+                            except Exception as err:
+                                logger.error("ERROR: {}".format(err))
                             return
                 logger.error("Usage: %{} <{}>".format(name, " | ".join(function_parameters_map.keys())))
                 return
@@ -392,6 +410,11 @@ parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='impo
                     help="The value(s) used to replace the placeholder found in the command format. "
                          "The file should start with a header which specifies the placeholders. "
                          "The delimiter can be changed in the profile (default=\\t). ")
+parser.add_argument('-e', '--environment', action="store_true",
+                    dest='environment',
+                    help="Uses the environment variables to replace the placeholders found in the command format. "
+                         "Can be overridden by the --set and --import argument. Note that only lower-case variables "
+                         "are considered that are matching the placeholders specified in the command format.")
 parser.add_argument('-t', '--template', action="store", metavar="FILE",
                     dest='command_template_name',
                     help="The template to use as command format.")\
@@ -436,6 +459,9 @@ try:
             print(command_format_string)
             sys.exit(0)
 
+    if not bob.command_format_string and arguments.environment:
+        bob.command_format_string = os.environ.get("COMMAND_FORMAT")
+
     if arguments.import_file:
         bob.import_data_file(arguments.import_file)
 
@@ -443,6 +469,9 @@ try:
     if arguments.data_set:
         for _data in arguments.data_set:
             bob.data.append(_data)
+
+    if arguments.environment and bob.command_format_string:
+        bob.import_environment()
 
     bob.filter_string = arguments.filter
 
@@ -514,5 +543,5 @@ try:
         print(bob.list_options())
 except Exception as e:
     logger.error("ERROR: {}".format(e))
-    #traceback.print_exc() # Uncomment this line for printing traceback
+    traceback.print_exc() # Uncomment this line for printing traceback
     sys.exit(1)

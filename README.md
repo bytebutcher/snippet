@@ -47,7 +47,15 @@ $ bob -c "echo '<arg1> - <arg2>'" -i input.csv
 
 In addition bob ships with a customizable set of default placeholders which can be directly used in your command (see ```.bob/profile.py``` for more information):
 ```
-$ bob -c "echo '<arg1> - <arg2> - <date_time>'" -i input.csv
+$ bob -c "echo '<date_time>'" 
+```
+
+You can also use the ```--environment``` argument to import the command format or placeholder data from your environment:
+```
+$ export COMMAND_FORMAT="echo '<arg1> - <arg2> - <date_time>'"
+$ export arg1=bob
+$ export arg2="\('the command builder' 'generating commands from data'\)"
+$ bob -e
 ```
 
 If you happen to type the same command over and over again there is just another feature. Template-files:
