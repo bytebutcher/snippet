@@ -69,3 +69,32 @@ Make sure that you link bob the executable accordingly:
 ```bash
 ln -s /path/to/bob.py /usr/bin/bob
 ```
+
+### Interactive Shell
+
+If you feel that using bob via the standard command line is a bit too tedious you can always drop into the interactive shell:
+```
+$ bob --interactive
+Type '%help' for more information
+In [1]: %help                                                                                                                                                                                                                                                     
+%use command_format <string>
+    set the command format e.g. %use command_format 'test <date_time>'.
+%use template <string>
+    set the command format via a template name e.g. %use template test.
+%show command_format
+    shows the current command format.
+%show options
+    shows the current list of potential placeholders and values.
+%show templates [filter_string]
+    shows the available list of templates. The list can be filtered by specifying a filter string.
+%set <placeholder=value|placeholder:file>
+    sets a potential placeholder and the associated values.
+%unset <placeholder>
+    unsets a potential placeholder.
+%import <file> [delimiter]
+    imports data from a given csv-file. The default delimiter is \t.
+%build
+    builds the commands.
+%help
+    show this help.
+``` 
