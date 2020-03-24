@@ -76,6 +76,7 @@ class CommandFormatArgumentParser(object):
 
     def __parse_file(self, placeholder_file, sep):
         placeholder, file = placeholder_file.split(sep)
+        placeholder_key = placeholder.lower()
         if not os.path.isfile(file):
             raise Exception("Parsing '{}' failed! File not found!".format(placeholder_file))
 
@@ -83,7 +84,7 @@ class CommandFormatArgumentParser(object):
             data = Data()
             with open(file) as f:
                 for value in f.read().splitlines():
-                    data.append(placeholder.lower(), value)
+                    data.append(placeholder_key, value)
             return data
         except:
             raise Exception("Parsing '{}' failed! Invalid file format!".format(placeholder_file))
@@ -101,14 +102,20 @@ class Data(dict):
             else:
                 self[placeholder] = [value]
 
+        placeholder_key = placeholder.lower()
         if values is None:
             for placeholder, values in CommandFormatArgumentParser().parse(placeholder).items():
-                _add(placeholder.lower(), values)
+                placeholder_key = placeholder.lower()
+                if isinstance(values, list):
+                    for value in values:
+                        _add(placeholder_key, value)
+                else:
+                    _add(placeholder_key, values)
         elif isinstance(values, list):
             for value in values:
-                _add(placeholder.lower(), value)
+                _add(placeholder_key, value)
         else:
-            _add(placeholder.lower(), values)
+            _add(placeholder_key, values)
 
     def to_data_frame(self, filter_string=None):
         # Create table data with equally sized lists by filling them with empty strings
@@ -134,11 +141,12 @@ class Data(dict):
             raise Exception("Importing '{}' failed! File not found!".format(import_file_path))
 
         try:
+            placeholder_key = placeholder.lower()
             with open(import_file_path, 'r') as f:
                 reader = csv.DictReader(f, delimiter=delimiter, quoting=csv.QUOTE_NONE)
                 for line in reader:
                     for placeholder in line.keys():
-                        self.append(placeholder.lower(), line[placeholder])
+                        self.append(placeholder_key, line[placeholder])
         except:
             raise Exception("Importing '{}' failed! Invalid file format!".format(import_file_path))
 

