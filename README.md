@@ -1,114 +1,157 @@
 # revamp
 
-## Usage
+```revamp``` is an advanced template based string formatting tool.  
 
-We start with the simplest (and probably most boring) example of how to use revamp:  
 ```
-$ revamp -c "echo '<arg1>'" -s arg1=revamp 
-```
-
-The command above will return one simple line of output:
-```bash
-echo 'revamp'
+$ revamp -f "echo '<arg1> <arg2>';" -s arg1=hello -s arg2=revamp
+echo 'hello revamp';
 ```
 
-That's indeed not very impressive. Let's look at another example.:
+## Assigning data to placeholders
+To assign data to a specified placeholder you have several options:
+
+### Using environment variables
+
+```revamp``` evaluates environment variables and assigns data to any unset placeholder:
 ```
-$ revamp -c "echo '<arg1> - <arg2>'" -s arg1=revamp -s "arg2=the command builder" -s "arg2=generating commands from data" 
+$ export arg1=revamp
+$ revamp -f "echo 'hello <arg1>';"
+echo 'hello revamp';
+```
+To assign multiple values to a placeholder following definition can be used:
+```
+$ export arg1="\('revamp' 'world'\)"
+$ revamp -f "echo 'hello <arg1>';"
+echo 'hello world';
+echo 'hello revamp';
 ```
 
-As you can see we specified multiple values for arg2. As a result revamp will return the following lines:
-```bash
-echo 'revamp - the command builder'
-echo 'revamp - generating commands from data'
-```
+### Using the --set argument
 
-Lets create some file named input.txt and look at yet another example:
+Another option to assign data is using the ```-s | --set``` argument: 
 ```
-$ cat <<EOF > input.txt
-the command builder
-generating commands from data
+$ revamp -f "echo 'hello <arg1>';" -s arg1=revamp
+echo 'hello revamp';
+```
+Similar to environment variables the ```-s | --set``` argument allows assigning multiple values to a placeholder:
+```
+$ revamp -f "echo 'hello <arg1>';" -s arg1="\('revamp' 'world'\)"
+echo 'hello world';
+echo 'hello revamp';
+```
+Another option is to use the ```-s | --set``` argument multiple times:
+```
+$ revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world
+echo 'hello world';
+echo 'hello revamp';
+``` 
+In addition the ```-s | --set``` argument also allows importing files:
+```
+$ cat <<<EOF > input.txt
+revamp
+world
 EOF
-$ revamp -c "echo '<arg1> - <arg2>'" -s arg1=revamp -s arg2:./input.txt 
+$ revamp -f "echo 'hello <arg1>';" -s arg1:input.txt
+echo 'hello world';
+echo 'hello revamp';
 ```
 
-As you can see you do not need to specify each and every value using the ```-s | --set``` operator but can load them from a file instead.
+### Importing csv-files
 
 Data can also be imported from a csv-file using the ```-i | --import``` argument.
-Note, that values must be separated by a tab character (which can be changed in ```.revamp/revamp_profile.py```):
+Note, that values must be separated by a tab character
+ (which can be changed in ```.revamp/revamp_profile.py```):
+
 ```
-$ cat input.csv
+$ cat <<<EOF > input.txt
 arg1    arg2
-revamp     the command builder
-        generating commands from data
-
-$ revamp -c "echo '<arg1> - <arg2>'" -i input.csv 
-echo 'revamp - the command builder'
-echo 'revamp - generating commands from data'
+hello   revamp
+        world
+EOF
+$ revamp -f "echo '<arg1> <arg2>'" -i input.csv 
+echo 'hello world'
+echo 'hello revamp'
 ```
 
-You can also import the command format or placeholder data from your environment by using the ```-e | --environment``` argument:
-```
-$ export COMMAND_FORMAT="echo '<arg1> - <arg2>'"
-$ export arg1=revamp
-$ export arg2="\('the command builder' 'generating commands from data'\)"
-$ revamp -e
-echo 'revamp - the command builder'
-echo 'revamp - generating commands from data'
-```
+### Presets
 
-In addition revamp ships with a customizable set of preset placeholders which can be directly used in your command (see ```.revamp/revamp_profile.py``` for more information):
+```revamp``` ships with a customizable set of preset placeholders which can be directly used in your command 
+(see ```.revamp/revamp_profile.py``` for more information):
 ```
 $ revamp -c "echo '<date_time>'" 
 echo '20200322034102'
 ```
 
-If you want to persist your command format you can add them to revamp's template directory
+## Using string formats
+
+To use string formats you have several options:
+
+### Using the --format-string argument
+
+If you read the previous section you already know the ```-f | --format-string``` argument:
+
+```
+$ revamp -f "echo 'hello revamp';"
+echo 'hello revamp';
+```
+
+### Environment variables
+```revamp``` allows setting the string format using the ```FORMAT_STRING``` environment variable:
+```
+$ export FORMAT_STRING="echo 'hello revamp';"
+$ revamp
+echo 'hello revamp';
+```
+
+### Templates
+
+If you want to persist your format string you can add them to ```revamp```'s template directory
 which can be easily accessed using the ```-t | --template``` argument:
 ```
 $ mkdir -p ~/.revamp/templates
-$ echo -n "echo '<arg1> - <arg2> - <date_time>'" > ~/.revamp/templates/example
+$ echo -n "echo '<arg1> <arg2> - <date_time>'" > ~/.revamp/templates/example
 $ revamp -t example -i input.csv
 ```
 
-You can list all available templates using the ```-l | --list-templates``` parameter.
-However, if you have bash-completion enabled you can also press <TAB> twice to autocomplete 
-template names when using the ```-t | --template``` parameter. 
+If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
+template names. 
 
+To list all available templates you can use the ```-l | --list-templates``` parameter.
+
+```
+$ revamp -l
+net/enum/enum4linux-basic
+net/scan/nmap-basic
+net/scan/nmap-ping
+net/scan/nmap-syn
+net/scan/nmap-version
+os/exec/bash-curl
+os/exec/bash-wget
+os/exec/cmd-webdav
+os/exec/powershell-http
+os/exec/powershell-webdav
+shell/listener/socat
+shell/reverse/linux/groovy
+shell/reverse/linux/java
+shell/reverse/linux/perl
+shell/reverse/linux/php
+shell/reverse/linux/python
+shell/reverse/linux/ruby
+shell/reverse/multi/powershell
+shell/reverse/multi/python
+shell/reverse/multi/socat
+shell/reverse/windows/groovy
+shell/reverse/windows/perl
+shell/reverse/windows/ruby
+shell/upgrade/pty
+web/fuzz/gobuster-basic
+web/fuzz/nikto-basic
+web/fuzz/wfuzz-basic
+web/fuzz/wfuzz-ext
+```
+
+## Configuration
 To enable bash-completion add following line to your .bashrc:
 ```bash
 eval "$(register-python-argcomplete revamp)"
 ```
-Make sure that you link revamp the executable accordingly:
-```bash
-ln -s /path/to/revamp.py /usr/bin/revamp
-```
-
-### Interactive Shell
-
-If you feel that using revamp via the standard command line is a bit too tedious you can always drop into the interactive shell:
-```
-$ revamp --interactive
-Type '%help' for more information
-In [1]: %help                                                                                                                                                                                                                                                     
-%use command_format <string>
-    set the command format e.g. %use command_format 'test <date_time>'.
-%use template <string>
-    set the command format via a template name e.g. %use template test.
-%show command_format
-    shows the current command format.
-%show options
-    shows the current list of potential placeholders and values.
-%show templates [filter_string]
-    shows the available list of templates. The list can be filtered by specifying a filter string.
-%set <placeholder=value|placeholder:file>
-    sets a potential placeholder and the associated values.
-%unset <placeholder>
-    unsets a potential placeholder.
-%import <file> [delimiter]
-    imports data from a given csv-file. The default delimiter is \t.
-%build
-    builds the commands.
-%help
-    show this help.
-``` 
