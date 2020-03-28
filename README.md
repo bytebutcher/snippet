@@ -18,7 +18,7 @@ $ export arg1=revamp
 $ revamp -f "echo 'hello <arg1>';"
 echo 'hello revamp';
 ```
-To assign multiple values to a placeholder following definition can be used:
+To assign multiple values to a placeholder following syntax can be used:
 ```
 $ export arg1="\('revamp' 'world'\)"
 $ revamp -f "echo 'hello <arg1>';"
