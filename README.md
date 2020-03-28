@@ -45,7 +45,7 @@ $ revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world
 echo 'hello world';
 echo 'hello revamp';
 ``` 
-In addition the ```-s | --set``` argument also allows importing files:
+In addition the ```-s | --set``` argument allows importing values from a file:
 ```
 $ cat <<<EOF > input.txt
 revamp
@@ -75,7 +75,8 @@ echo 'hello revamp'
 
 ### Presets
 
-```revamp``` ships with a customizable set of preset placeholders which can be directly used in your command 
+```revamp``` ships with a customizable set of preset placeholders which can be 
+directly used in your format string 
 (see ```.revamp/revamp_profile.py``` for more information):
 ```
 $ revamp -c "echo '<date_time>'" 
@@ -116,7 +117,8 @@ $ revamp -t example -i input.csv
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
 template names. 
 
-To list all available templates you can use the ```-l | --list-templates``` parameter.
+To list all available templates you can use the ```-l | --list-templates``` 
+parameter:
 
 ```
 $ revamp -l
