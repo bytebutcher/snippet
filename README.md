@@ -1,27 +1,26 @@
-# bob
-bob the command builder - generating commands from data
+# revamp
 
 ## Usage
 
-We start with the simplest (and probably most boring) example of how to use bob:  
+We start with the simplest (and probably most boring) example of how to use revamp:  
 ```
-$ bob -c "echo '<arg1>'" -s arg1=bob 
+$ revamp -c "echo '<arg1>'" -s arg1=revamp 
 ```
 
 The command above will return one simple line of output:
 ```bash
-echo 'bob'
+echo 'revamp'
 ```
 
 That's indeed not very impressive. Let's look at another example.:
 ```
-$ bob -c "echo '<arg1> - <arg2>'" -s arg1=bob -s "arg2=the command builder" -s "arg2=generating commands from data" 
+$ revamp -c "echo '<arg1> - <arg2>'" -s arg1=revamp -s "arg2=the command builder" -s "arg2=generating commands from data" 
 ```
 
-As you can see we specified multiple values for arg2. As a result bob will return the following lines:
+As you can see we specified multiple values for arg2. As a result revamp will return the following lines:
 ```bash
-echo 'bob - the command builder'
-echo 'bob - generating commands from data'
+echo 'revamp - the command builder'
+echo 'revamp - generating commands from data'
 ```
 
 Lets create some file named input.txt and look at yet another example:
@@ -30,46 +29,46 @@ $ cat <<EOF > input.txt
 the command builder
 generating commands from data
 EOF
-$ bob -c "echo '<arg1> - <arg2>'" -s arg1=bob -s arg2:./input.txt 
+$ revamp -c "echo '<arg1> - <arg2>'" -s arg1=revamp -s arg2:./input.txt 
 ```
 
 As you can see you do not need to specify each and every value using the ```-s | --set``` operator but can load them from a file instead.
 
 Data can also be imported from a csv-file using the ```-i | --import``` argument.
-Note, that values must be separated by a tab character (which can be changed in ```.bob/bob_profile.py```):
+Note, that values must be separated by a tab character (which can be changed in ```.revamp/revamp_profile.py```):
 ```
 $ cat input.csv
 arg1    arg2
-bob     the command builder
+revamp     the command builder
         generating commands from data
 
-$ bob -c "echo '<arg1> - <arg2>'" -i input.csv 
-echo 'bob - the command builder'
-echo 'bob - generating commands from data'
+$ revamp -c "echo '<arg1> - <arg2>'" -i input.csv 
+echo 'revamp - the command builder'
+echo 'revamp - generating commands from data'
 ```
 
 You can also import the command format or placeholder data from your environment by using the ```-e | --environment``` argument:
 ```
 $ export COMMAND_FORMAT="echo '<arg1> - <arg2>'"
-$ export arg1=bob
+$ export arg1=revamp
 $ export arg2="\('the command builder' 'generating commands from data'\)"
-$ bob -e
-echo 'bob - the command builder'
-echo 'bob - generating commands from data'
+$ revamp -e
+echo 'revamp - the command builder'
+echo 'revamp - generating commands from data'
 ```
 
-In addition bob ships with a customizable set of preset placeholders which can be directly used in your command (see ```.bob/bob_profile.py``` for more information):
+In addition revamp ships with a customizable set of preset placeholders which can be directly used in your command (see ```.revamp/revamp_profile.py``` for more information):
 ```
-$ bob -c "echo '<date_time>'" 
+$ revamp -c "echo '<date_time>'" 
 echo '20200322034102'
 ```
 
-If you want to persist your command format you can add them to bob's template directory
+If you want to persist your command format you can add them to revamp's template directory
 which can be easily accessed using the ```-t | --template``` argument:
 ```
-$ mkdir -p ~/.bob/templates
-$ echo -n "echo '<arg1> - <arg2> - <date_time>'" > ~/.bob/templates/example
-$ bob -t example -i input.csv
+$ mkdir -p ~/.revamp/templates
+$ echo -n "echo '<arg1> - <arg2> - <date_time>'" > ~/.revamp/templates/example
+$ revamp -t example -i input.csv
 ```
 
 You can list all available templates using the ```-l | --list-templates``` parameter.
@@ -78,18 +77,18 @@ template names when using the ```-t | --template``` parameter.
 
 To enable bash-completion add following line to your .bashrc:
 ```bash
-eval "$(register-python-argcomplete bob)"
+eval "$(register-python-argcomplete revamp)"
 ```
-Make sure that you link bob the executable accordingly:
+Make sure that you link revamp the executable accordingly:
 ```bash
-ln -s /path/to/bob.py /usr/bin/bob
+ln -s /path/to/revamp.py /usr/bin/revamp
 ```
 
 ### Interactive Shell
 
-If you feel that using bob via the standard command line is a bit too tedious you can always drop into the interactive shell:
+If you feel that using revamp via the standard command line is a bit too tedious you can always drop into the interactive shell:
 ```
-$ bob --interactive
+$ revamp --interactive
 Type '%help' for more information
 In [1]: %help                                                                                                                                                                                                                                                     
 %use command_format <string>

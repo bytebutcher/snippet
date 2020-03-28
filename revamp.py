@@ -26,15 +26,15 @@ except:
     sys.stderr.write("Please install requirements using 'pip3 install -r requirements.txt" + os.linesep)
     sys.exit(1)
 
-app_name = "bob"
+app_name = "revamp"
 app_version = "1.0b"
 
 # Configuration files
 # ===================
-# Configuration files can be placed into a folder named ".bob". Either inside the application- or
+# Configuration files can be placed into a folder named ".revamp". Either inside the application- or
 # inside the home-directory.
-app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".bob")
-home_config_path = os.path.join(str(Path.home()), ".bob")
+app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".revamp")
+home_config_path = os.path.join(str(Path.home()), ".revamp")
 
 
 def init_logger(app_id, log_format="%(module)s: %(lineno)d: %(msg)s"):
@@ -165,7 +165,7 @@ class Config(object):
                     # Since the path may contain special characters which can not be processed by the __import__
                     # function we temporary add the template path in which the profile.py is located to the PATH.
                     sys.path.append(profile_path)
-                    profile = __import__("bob_profile").Profile()
+                    profile = __import__("revamp_profile").Profile()
                     sys.path.pop()
                     return profile
                 except:
@@ -286,7 +286,7 @@ class CommandsBuilder(object):
         return result
 
 
-class Bob(object):
+class Revamp(object):
 
     command_format_string = None
     filter_string = None
@@ -385,7 +385,7 @@ Type '%help' for more information""".format(app_name=app_name, app_version=app_v
 
 
 config = Config([home_config_path, app_config_path])
-bob = Bob(config)
+revamp = Revamp(config)
 
 def argparse_template_completer(prefix, parsed_args, **kwargs):
     return config.get_command_template_names()
@@ -394,7 +394,7 @@ def argparse_template_completer(prefix, parsed_args, **kwargs):
 logger = init_logger(app_name, "%(msg)s")
 
 parser = argparse.ArgumentParser(
-    description='Bob - the command builder',
+    description='revamp',
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog="""
 Placeholder presets:
@@ -403,8 +403,8 @@ Placeholder presets:
 
 Examples:
 
-  bob -s target=localhost     -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
-  bob -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
+  revamp -s target=localhost     -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
+  revamp -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
     """
 )
 parser.add_argument('-c', '--command-format', action="store", metavar="COMMAND_FORMAT_STRING",
@@ -445,7 +445,7 @@ arguments = parser.parse_args()
 
 try:
     if arguments.list_templates:
-        command_template_names = bob.list_templates()
+        command_template_names = revamp.list_templates()
         if not command_template_names:
             logger.warning("WARNING: No templates found!")
         for command_template_name in command_template_names:
@@ -456,32 +456,32 @@ try:
         raise Exception("--command-string can not be used in conjunction with --template!")
 
     if arguments.command_format_string:
-        bob.command_format_string = arguments.command_format_string
+        revamp.command_format_string = arguments.command_format_string
 
     if arguments.view_template and not arguments.command_template_name:
         raise Exception("--view-template must be used in combination with --template!")
 
     if arguments.command_template_name:
-        command_format_string = bob.use_template(arguments.command_template_name)
+        command_format_string = revamp.use_template(arguments.command_template_name)
         if arguments.view_template:
             print(command_format_string)
             sys.exit(0)
 
-    if not bob.command_format_string and arguments.environment:
-        bob.command_format_string = os.environ.get("COMMAND_FORMAT")
+    if not revamp.command_format_string and arguments.environment:
+        revamp.command_format_string = os.environ.get("COMMAND_FORMAT")
 
     if arguments.import_file:
-        bob.import_data_file(arguments.import_file)
+        revamp.import_data_file(arguments.import_file)
 
     # Load data given via --set argument
     if arguments.data_set:
         for _data in arguments.data_set:
-            bob.data.append(_data)
+            revamp.data.append(_data)
 
-    if arguments.environment and bob.command_format_string:
-        bob.import_environment()
+    if arguments.environment and revamp.command_format_string:
+        revamp.import_environment()
 
-    bob.filter_string = arguments.filter
+    revamp.filter_string = arguments.filter
 
     if arguments.interactive:
         shell = InteractiveShell()
@@ -515,40 +515,40 @@ try:
         # Register magic functions and autocomplete
         shell.register_functions("use", [
             InteractiveShell.Function(
-                name="command_format", callback=lambda *args, **kwargs: setattr(bob, "command_format_string", *args)),
+                name="command_format", callback=lambda *args, **kwargs: setattr(revamp, "command_format_string", *args)),
             InteractiveShell.Function(
-                name="template", callback=lambda *args, **kwargs: bob.use_template(*args))
+                name="template", callback=lambda *args, **kwargs: revamp.use_template(*args))
         ])
         shell.register_functions("show", [
             InteractiveShell.Function(
-                name="command_format", callback=lambda *args, **kwargs: print(bob.command_format_string)),
+                name="command_format", callback=lambda *args, **kwargs: print(revamp.command_format_string)),
             InteractiveShell.Function(
-                name="options", callback=lambda *args, **kwargs: print(bob.list_options(*args))),
+                name="options", callback=lambda *args, **kwargs: print(revamp.list_options(*args))),
             InteractiveShell.Function(
-                name="templates", callback=lambda *args, **kwargs: print_lines(bob.list_templates(*args)))
+                name="templates", callback=lambda *args, **kwargs: print_lines(revamp.list_templates(*args)))
         ])
         shell.register_functions("set", InteractiveShell.Function(
-            meta="placeholder=value | placeholder:file", callback=lambda *args, **kwargs: bob.data.append(*args)
+            meta="placeholder=value | placeholder:file", callback=lambda *args, **kwargs: revamp.data.append(*args)
         ))
         shell.register_functions("unset", InteractiveShell.Function(
-            meta="placeholder", callback=lambda args, *kwargs: bob.data.pop(*args)
+            meta="placeholder", callback=lambda args, *kwargs: revamp.data.pop(*args)
         ))
         shell.register_functions("import", InteractiveShell.Function(
-            meta="file", callback=lambda *args, **kwargs: bob.import_data_file(*args)
+            meta="file", callback=lambda *args, **kwargs: revamp.import_data_file(*args)
         ))
         shell.register_functions("build", InteractiveShell.Function(
-            callback=lambda *args, **kwargs: print_lines(bob.build()))
+            callback=lambda *args, **kwargs: print_lines(revamp.build()))
         )
         shell.register_functions("help", InteractiveShell.Function(callback=_show_help))
 
         shell.run()
         sys.exit(0)
 
-    if bob.command_format_string:
-        for line in bob.build():
+    if revamp.command_format_string:
+        for line in revamp.build():
             print(line)
     else:
-        print(bob.list_options())
+        print(revamp.list_options())
 except Exception as e:
     logger.error("ERROR: {}".format(e))
     #traceback.print_exc() # Uncomment this line for printing traceback
