@@ -1,24 +1,34 @@
 # revamp
 
-```revamp``` is an advanced template based string formatting tool.  
+```revamp``` is an advanced template based string formatting tool which 
+has the ability to do complex variable substitutions:
 
 ```
 $ revamp -f "echo '<arg1> <arg2>';" -s arg1=hello -s arg2=revamp
 echo 'hello revamp';
 ```
 
+In combination with a command processor it allows easy execution of alternating commands:   
+```
+$ revamp -f "echo '<arg1> <arg2>';" -s arg1=hello -s arg2=revamp | bash
+hello revamp
+```
+
+
 ## Assigning data to placeholders
-To assign data to a specified placeholder you have several options:
+To assign data to a placeholder you have several options:
 
 ### Using environment variables
 
-```revamp``` evaluates environment variables and assigns data to any unset placeholder:
+```revamp``` evaluates environment variables and assigns data to any unset 
+placeholder. To avoid running into conflict with other environment variables ```revamp``` only evaluates 
+lower-case variable names:
 ```
 $ export arg1=revamp
 $ revamp -f "echo 'hello <arg1>';"
 echo 'hello revamp';
 ```
-To assign multiple values to a placeholder following syntax can be used:
+To assign multiple values to a placeholder following syntax needs to be used:
 ```
 $ export arg1="\('revamp' 'world'\)"
 $ revamp -f "echo 'hello <arg1>';"
@@ -39,7 +49,7 @@ $ revamp -f "echo 'hello <arg1>';" -s arg1="\('revamp' 'world'\)"
 echo 'hello world';
 echo 'hello revamp';
 ```
-Another option is to use the ```-s | --set``` argument multiple times:
+Another option is to use the ```-s | --set``` argument several times in a row:
 ```
 $ revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world
 echo 'hello world';
@@ -77,9 +87,10 @@ echo 'hello revamp'
 
 ```revamp``` ships with a customizable set of preset placeholders which can be 
 directly used in your format string 
-(see ```.revamp/revamp_profile.py``` for more information):
+(see ```.revamp/revamp_profile.py``` for more information). Preset placeholders may have constant  
+but also dynamically generated values assigned to them:
 ```
-$ revamp -c "echo '<date_time>'" 
+$ revamp -f "echo '<date_time>'" 
 echo '20200322034102'
 ```
 
@@ -117,6 +128,12 @@ $ revamp -t example -i input.csv
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
 template names. 
 
+If you want to review a specific template you can use the ```-v | --view-template``` argument:
+```
+$ revamp -t example -v
+echo '<arg1> <arg2> - <date_time>'
+```
+
 To list all available templates you can use the ```-l | --list-templates``` 
 parameter:
 
@@ -132,6 +149,10 @@ os/exec/bash-wget
 os/exec/cmd-webdav
 os/exec/powershell-http
 os/exec/powershell-webdav
+os/exec/xargs-parallel
+shell/listener/nc
+shell/listener/ncat
+shell/listener/netcat
 shell/listener/socat
 shell/reverse/linux/groovy
 shell/reverse/linux/java
@@ -152,8 +173,29 @@ web/fuzz/wfuzz-basic
 web/fuzz/wfuzz-ext
 ```
 
+## Command Execution
+
+```revamp``` can be used to easily execute alternating commands in sequence:
+```
+$ revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world | bash
+hello world
+hello revamp
+```
+
+Using ```xargs``` the resulting commands can also be executed in parallel:
+```
+revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world | xargs --max-procs=4 -I CMD bash -c CMD
+hello world
+hello revamp
+```
+
 ## Configuration
 To enable bash-completion add following line to your .bashrc:
 ```bash
 eval "$(register-python-argcomplete revamp)"
 ```
+Make sure to add the ```revamp``` directory to your ```PATH``` or link it accordingly:
+```
+ln -s /path/to/revamp.py /usr/bin/revamp
+```
+

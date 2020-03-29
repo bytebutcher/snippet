@@ -1,1 +1,1 @@
-socat file:`tty`,raw,echo=0 tcp-listen:<LPORT>
+socat file:`tty`,raw,echo=0 tcp-listen:<lport>
