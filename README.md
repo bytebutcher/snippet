@@ -8,7 +8,8 @@ $ revamp -f "echo '<arg1> <arg2>';" -s arg1=hello -s arg2=revamp
 echo 'hello revamp';
 ```
 
-In combination with a command processor it allows easy execution of alternating commands:   
+Besides copy and pasting the output where you actually need it you can pipe the result to a command processor 
+which allows direct and easy execution of alternating commands:   
 ```
 $ revamp -f "echo '<arg1> <arg2>';" -s arg1=hello -s arg2=revamp | bash
 hello revamp
