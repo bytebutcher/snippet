@@ -140,8 +140,10 @@ class Data(defaultdict):
                 reader = csv.DictReader(f, delimiter=delimiter, quoting=csv.QUOTE_NONE)
                 for line in reader:
                     for placeholder in line.keys():
-                        placeholder_key = placeholder.lower()
-                        self.append(placeholder_key, line[placeholder])
+                        value = line[placeholder]
+                        if value:
+                            placeholder_key = placeholder.lower()
+                            self.append(placeholder_key, value)
         except:
             raise Exception("Importing '{}' failed! Invalid file format!".format(import_file_path))
 
@@ -394,7 +396,7 @@ parser.add_argument('-t', '--template', action="store", metavar="FILE",
                     dest='template_name',
                     help="The template to use as format string.")\
     .completer = argparse_template_completer
-parser.add_argument('--view-template', action="store_true",
+parser.add_argument('-v', '--view-template', action="store_true",
                     dest='view_template',
                     help="View the template instead of using it as generator. Can only be used in combination with "
                          "the --template argument.")

@@ -57,7 +57,7 @@ echo 'hello revamp';
 ``` 
 In addition the ```-s | --set``` argument allows importing values from a file:
 ```
-$ cat <<<EOF > input.txt
+$ cat <<EOF > input.txt
 revamp
 world
 EOF
@@ -73,14 +73,14 @@ Note, that values must be separated by a tab character
  (which can be changed in ```.revamp/revamp_profile.py```):
 
 ```
-$ cat <<<EOF > input.txt
+$ cat <<EOF > input.csv
 arg1    arg2
 hello   revamp
         world
 EOF
-$ revamp -f "echo '<arg1> <arg2>'" -i input.csv 
-echo 'hello world'
-echo 'hello revamp'
+$ revamp -f "echo '<arg1> <arg2>';" -i input.csv 
+echo 'hello world';
+echo 'hello revamp';
 ```
 
 ### Presets
@@ -90,8 +90,8 @@ directly used in your format string
 (see ```.revamp/revamp_profile.py``` for more information). Preset placeholders may have constant  
 but also dynamically generated values assigned to them:
 ```
-$ revamp -f "echo '<date_time>'" 
-echo '20200322034102'
+$ revamp -f "echo '<date_time>';" 
+echo '20200322034102';
 ```
 
 ## Using string formats
@@ -122,7 +122,8 @@ which can be easily accessed using the ```-t | --template``` argument:
 ```
 $ mkdir -p ~/.revamp/templates
 $ echo -n "echo '<arg1> <arg2> - <date_time>'" > ~/.revamp/templates/example
-$ revamp -t example -i input.csv
+$ revamp -t example -s arg1=hello -s arg2=revamp
+hello revamp - 20200322034102
 ```
 
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
