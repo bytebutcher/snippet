@@ -4,20 +4,35 @@
 has the ability to do complex variable substitutions:
 
 ```
-$ revamp -f "echo '<arg1> <arg2>';" -s arg1=hello -s arg2=revamp
+$ revamp -f "echo '<arg1> <arg2>';" hello revamp
 echo 'hello revamp';
 ```
 
 Besides copy and pasting the output where you actually need it you can pipe the result to a command processor 
 which allows direct and easy execution of alternating commands:   
 ```
-$ revamp -f "echo '<arg1> <arg2>';" -s arg1=hello -s arg2=revamp | bash
+$ revamp -f "echo '<arg1> <arg2>';" hello revamp | bash
 hello revamp
 ```
 
 
 ## Assigning data to placeholders
 To assign data to a placeholder you have several options:
+
+### Using positional arguments
+The most straight forward way of assigning data to any unset placeholder is by using positional arguments:
+
+```
+$ revamp -f "echo 'hello <arg1>';" revamp
+echo 'hello revamp';
+```
+To assign multiple values to one specific placeholder values need to be enclosed in ```\(``` and ```\)```:
+
+```
+$ revamp -f "echo 'hello <arg1>';" "\('revamp' 'world'\)"
+echo 'hello revamp';
+echo 'hello world';
+```
 
 ### Using environment variables
 
@@ -33,8 +48,8 @@ To assign multiple values to a placeholder following syntax needs to be used:
 ```
 $ export arg1="\('revamp' 'world'\)"
 $ revamp -f "echo 'hello <arg1>';"
-echo 'hello world';
 echo 'hello revamp';
+echo 'hello world';
 ```
 
 ### Using the --set argument

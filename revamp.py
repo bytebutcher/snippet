@@ -325,6 +325,11 @@ class Revamp(object):
     def list_placeholders(self):
         return DataBuilder(self.format_string, self.data, self.config).get_placeholders()
 
+    def list_unset_placeholders(self):
+        for placeholder in [p.lower() for p in self.list_placeholders()]:
+            if placeholder not in self.data:
+                yield placeholder
+
     def import_data_file(self, import_file_path, delimiter=None):
         if not delimiter:
             delimiter = self.config.profile.csv_delimiter if self.config.profile else '\t'
@@ -381,24 +386,28 @@ Examples:
   revamp -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
     """
 )
+parser.add_argument('data_value', metavar='VALUE', nargs='*',
+                    help='Replaces the first unset placeholder found in the format string with a value or a list of '
+                         'values. A list of values can be asigned by enclosing them inside \\( and \\).')
 parser.add_argument('-f', '--format-string', action="store", metavar="FORMAT_STRING",
                     dest='format_string',
                     help="The format of the data to generate. "
                          "The placeholders are identified by less than (<) and greater than (>) signs.")
 parser.add_argument('-s', '--set', action="append", metavar="PLACEHOLDER=VALUE | -s PLACEHOLDER:FILE", dest='data_set',
-                    help="The value(s) used to replace the placeholder found in the format string. "
-                         "Values can either be directly specified or loaded from file.")
+                    help="Replaces the placeholder found in the format string with a value or a list of values. "
+                         "A list of values can be asigned by enclosing them inside \\( and \\) or by specifying a "
+                         "file location where values are loaded from.")
 parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='import_file',
-                    help="The value(s) used to replace the placeholder found in the format string. "
-                         "The file should start with a header which specifies the placeholders. "
-                         "The delimiter can be changed in the profile (default=\\t). ")
+                    help="Replace the placeholders found in the format string with the values found in the specified "
+                         "file. The file should start with a header which specifies the placeholders. Values should "
+                         "be separated by a tab character which can be customized in the profile file. ")
 parser.add_argument('-t', '--template', action="store", metavar="FILE",
                     dest='template_name',
                     help="The template to use as format string.")\
     .completer = argparse_template_completer
 parser.add_argument('-v', '--view-template', action="store_true",
                     dest='view_template',
-                    help="View the template instead of using it as generator. Can only be used in combination with "
+                    help="Views the template instead of using it as generator. Can only be used in combination with "
                          "the --template argument.")
 parser.add_argument('-l', '--list-templates', action="store_true",
                     dest='list_templates',
@@ -445,6 +454,11 @@ try:
             revamp.data.append(_data)
 
     revamp.import_environment(Revamp.ImportEnvironmentMode.default)
+
+    if arguments.data_value:
+        for placeholder in revamp.list_unset_placeholders():
+            if len(arguments.data_value) > 0:
+                revamp.data.append(placeholder, arguments.data_value.pop(0))
 
     if revamp.format_string:
         for line in revamp.build(arguments.filter):
