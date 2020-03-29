@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import shlex
 import traceback
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from enum import Enum
 
 import argcomplete, argparse
@@ -154,6 +154,7 @@ class Config(object):
         self.paths = paths
         self.format_template_paths = [os.path.join(path, "templates") for path in paths]
         self.profile = self.__load_profile()
+        self._reserved_placeholder_values = []
 
     def __load_profile(self):
         for profile_path in self.paths:
@@ -174,14 +175,21 @@ class Config(object):
             return self.profile.placeholder_values
         return []
 
+    def get_reserved_placeholder_names(self):
+        for reserved_placeholder in self.get_reserved_placeholders():
+            yield reserved_placeholder.name
+
     def get_reserved_placeholder_values(self):
-        reserved_placeholders = Data()
+        if self._reserved_placeholder_values:
+            return dict(self._reserved_placeholder_values)
+
+        self._reserved_placeholder_values = Data()
         if self.profile:
             for placeholder_value in self.profile.placeholder_values:
                 placeholder_name = placeholder_value.name
-                reserved_placeholders.append(placeholder_name, placeholder_value.element())
+                self._reserved_placeholder_values.append(placeholder_name, placeholder_value.element())
 
-        return reserved_placeholders
+        return dict(self._reserved_placeholder_values)
 
     def get_format_template_names(self):
         format_template_files = []
@@ -215,11 +223,13 @@ class DataBuilder(object):
 
     def get_placeholders(self):
         if self._placeholders:
-            return self._placeholders
+            return list(self._placeholders)
 
         if self._format_string:
-            self._placeholders = list(set(placeholder for placeholder in re.findall("<(\w+)>", self._format_string)))
-            return self._placeholders
+            # Parse placeholders from format string
+            # Remove duplicate placeholders while preserving order
+            self._placeholders = list(OrderedDict.fromkeys(placeholder for placeholder in re.findall("<(\w+)>", self._format_string)))
+            return list(self._placeholders)
         else:
             return []
 
@@ -232,8 +242,8 @@ class DataBuilder(object):
         placeholders = [placeholder.lower() for placeholder in self.get_placeholders()]
         for placeholder in self.data.keys():
             if placeholder in placeholders:
-                # Add to temporary data while removing duplicate items
-                temporary_data[placeholder] = set(self.data[placeholder])
+                # Add to temporary data. Remove duplicates while preserving order
+                temporary_data[placeholder] = OrderedDict.fromkeys(self.data[placeholder])
 
         reserved_placeholder_values = self.config.get_reserved_placeholder_values()
         if any(reserved_placeholder in temporary_data.keys() for reserved_placeholder in reserved_placeholder_values.keys()):
@@ -242,8 +252,8 @@ class DataBuilder(object):
 
         for placeholder, value in reserved_placeholder_values.items():
             if placeholder in placeholders:
-                # Add to temporary data while removing duplicate items
-                temporary_data[placeholder] = set(value)
+                # Add to temporary data. Remove duplicates while preserving order
+                temporary_data[placeholder] = OrderedDict.fromkeys(value)
 
         unset_placeholders = [placeholder for placeholder in placeholders if placeholder not in temporary_data]
         if unset_placeholders:
@@ -325,10 +335,15 @@ class Revamp(object):
     def list_placeholders(self):
         return DataBuilder(self.format_string, self.data, self.config).get_placeholders()
 
+    def list_reserved_placeholders(self):
+        return self.config.get_reserved_placeholder_names()
+
     def list_unset_placeholders(self):
+        unset_placeholders = []
         for placeholder in [p.lower() for p in self.list_placeholders()]:
-            if placeholder not in self.data:
-                yield placeholder
+            if placeholder not in self.data and placeholder not in self.list_reserved_placeholders():
+                unset_placeholders.append(placeholder)
+        return unset_placeholders
 
     def import_data_file(self, import_file_path, delimiter=None):
         if not delimiter:
@@ -415,6 +430,9 @@ parser.add_argument('-l', '--list-templates', action="store_true",
 parser.add_argument('--filter', action="store", metavar="STRING", dest='filter',
                     help="The filter to include/exclude results "
                          "(e.g. --filter 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
+parser.add_argument('-d', '--debug', action="store_true",
+                    dest='debug',
+                    help="Activates the debug mode.")
 
 argcomplete.autocomplete(parser)
 arguments = parser.parse_args()
@@ -467,5 +485,6 @@ try:
         print(revamp.list_options())
 except Exception as e:
     logger.error("ERROR: {}".format(e))
-    #traceback.print_exc() # Uncomment this line for printing traceback
+    if arguments.debug:
+        traceback.print_exc()
     sys.exit(1)
