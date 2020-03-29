@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import shlex
 import traceback
+from collections import defaultdict
 from enum import Enum
 
 import argcomplete, argparse
@@ -11,19 +12,14 @@ import logging
 import os
 import sys
 import itertools
+import time
+
+start_time = time.time()
 
 try:
     import pandas as pd
 except:
     sys.stderr.write("Missing python3 package pandas! ")
-    sys.stderr.write("Please install requirements using 'pip3 install -r requirements.txt" + os.linesep)
-    sys.exit(1)
-
-try:
-    import IPython
-    from IPython.terminal.embed import InteractiveShellEmbed
-except:
-    sys.stderr.write("Missing python3 package IPython! ")
     sys.stderr.write("Please install requirements using 'pip3 install -r requirements.txt" + os.linesep)
     sys.exit(1)
 
@@ -71,13 +67,12 @@ class FormatArgumentParser(object):
     def __parse_value(self, placeholder_value, sep):
         try:
             placeholder, value = placeholder_value.split(sep)
-            return {placeholder.lower(): value}
+            return {placeholder: value}
         except:
             raise Exception("Parsing '{}' failed! Unknown error!".format(placeholder_value))
 
     def __parse_file(self, placeholder_file, sep):
         placeholder, file = placeholder_file.split(sep)
-        placeholder_key = placeholder.lower()
         if not os.path.isfile(file):
             raise Exception("Parsing '{}' failed! File not found!".format(placeholder_file))
 
@@ -85,42 +80,39 @@ class FormatArgumentParser(object):
             data = Data()
             with open(file) as f:
                 for value in f.read().splitlines():
-                    data.append(placeholder_key, value)
+                    data.append(placeholder, value)
             return data
         except:
             raise Exception("Parsing '{}' failed! Invalid file format!".format(placeholder_file))
 
 
-class Data(dict):
+class Data(defaultdict):
     """
      Map of placeholders with value lists e.g. { 'PLACEHOLDER-1': ('a','b','c'), 'PLACEHOLDER-2': ('d') }
     """
 
-    def append(self, placeholder, values=None):
-        def _add(placeholder, value):
-            if placeholder in self.keys():
-                self[placeholder].append(value)
-            else:
-                self[placeholder] = [value]
+    def __init__(self):
+        super().__init__(list)
 
+    def append(self, placeholder, values=None):
         placeholder_key = placeholder.lower()
         if values is None:
             for placeholder, values in FormatArgumentParser().parse(placeholder).items():
                 placeholder_key = placeholder.lower()
                 if isinstance(values, list):
                     for value in values:
-                        _add(placeholder_key, value)
+                        self[placeholder_key].append(value)
                 else:
-                    _add(placeholder_key, values)
+                    self[placeholder_key].append(values)
         elif isinstance(values, list):
             for value in values:
-                _add(placeholder_key, value)
+                self[placeholder_key].append(value)
         else:
             if values.startswith('\(') and values.endswith('\)'):
                 for value in shlex.split(values[2:-2]):
-                    _add(placeholder_key, value)
+                    self[placeholder_key].append(value)
             else:
-                _add(placeholder_key, values)
+                self[placeholder_key].append(values)
 
     def to_data_frame(self, filter_string=None):
         # Create table data with equally sized lists by filling them with empty strings
@@ -187,7 +179,7 @@ class Config(object):
         if self.profile:
             for placeholder_value in self.profile.placeholder_values:
                 placeholder_name = placeholder_value.name
-                reserved_placeholders.append(placeholder_name.lower(), placeholder_value.element())
+                reserved_placeholders.append(placeholder_name, placeholder_value.element())
 
         return reserved_placeholders
 
@@ -216,13 +208,18 @@ class Config(object):
 class DataBuilder(object):
 
     def __init__(self, format_string, data, config):
-        self.format_string = format_string
+        self._format_string = format_string
+        self._placeholders = []
         self.data = data
         self.config = config
 
     def get_placeholders(self):
-        if self.format_string:
-            return list(set(placeholder for placeholder in re.findall("<(\w+)>", self.format_string)))
+        if self._placeholders:
+            return self._placeholders
+
+        if self._format_string:
+            self._placeholders = list(set(placeholder for placeholder in re.findall("<(\w+)>", self._format_string)))
+            return self._placeholders
         else:
             return []
 
@@ -275,15 +272,15 @@ class DataBuilder(object):
 
     def build(self, filter_string=None):
         result = []
-        if self.format_string:
+        if self._format_string:
             data_frame = self.transform_data(filter_string)
             if len(data_frame) == 0:
-                return [self.format_string]
+                return [self._format_string]
 
             placeholders = self.get_placeholders()
             for index, row in data_frame.iterrows():
                 # Replace placeholders in format string with values
-                output_line = self.format_string
+                output_line = self._format_string
                 for placeholder in placeholders:
                     output_line = output_line.replace("<" + placeholder + ">", row[placeholder.lower()])
                 result.append(output_line)
@@ -458,3 +455,5 @@ except Exception as e:
     logger.error("ERROR: {}".format(e))
     #traceback.print_exc() # Uncomment this line for printing traceback
     sys.exit(1)
+
+print("time elapsed: {:.2f}s".format(time.time() - start_time))
