@@ -12,9 +12,7 @@ import logging
 import os
 import sys
 import itertools
-import time
 
-start_time = time.time()
 
 try:
     import pandas as pd
@@ -455,5 +453,3 @@ except Exception as e:
     logger.error("ERROR: {}".format(e))
     #traceback.print_exc() # Uncomment this line for printing traceback
     sys.exit(1)
-
-print("time elapsed: {:.2f}s".format(time.time() - start_time))
