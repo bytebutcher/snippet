@@ -20,18 +20,30 @@ hello revamp
 To assign data to a placeholder you have several options:
 
 ### Using positional arguments
-The most straight forward way of assigning data to any unset placeholder is by using positional arguments:
+The most straight forward way of assigning data to an placeholder is to use positional arguments:
 
 ```
 $ revamp -f "echo 'hello <arg1>';" revamp
 echo 'hello revamp';
 ```
-To assign multiple values to one specific placeholder values need to be enclosed in ```\(``` and ```\)```:
 
+To assign multiple values to a specific placeholder you can explicitly declare the placeholder to which the 
+value should be assigned to:
 ```
-$ revamp -f "echo 'hello <arg1>';" "\('revamp' 'world'\)"
+$ revamp -f "echo 'hello <arg1>';" arg1=revamp arg1=world
 echo 'hello revamp';
 echo 'hello world';
+```
+
+However, values can also be directly imported from a file:
+```
+$ cat <<EOF > input.txt
+revamp
+world
+EOF
+$ revamp -f "echo 'hello <arg1>';" arg1:input.txt
+echo 'hello world';
+echo 'hello revamp';
 ```
 
 ### Using environment variables
@@ -44,7 +56,7 @@ $ export arg1=revamp
 $ revamp -f "echo 'hello <arg1>';"
 echo 'hello revamp';
 ```
-To assign multiple values to a placeholder following syntax needs to be used:
+To assign multiple values to a placeholder following syntax must be used:
 ```
 $ export arg1="\('revamp' 'world'\)"
 $ revamp -f "echo 'hello <arg1>';"
@@ -52,36 +64,13 @@ echo 'hello revamp';
 echo 'hello world';
 ```
 
-### Using the --set argument
-
-Another option to assign data is using the ```-s | --set``` argument: 
+Note that positional arguments may override the evaluation of environment variables:
 ```
-$ revamp -f "echo 'hello <arg1>';" -s arg1=revamp
-echo 'hello revamp';
-```
-Similar to environment variables the ```-s | --set``` argument allows assigning multiple values to a placeholder:
-```
-$ revamp -f "echo 'hello <arg1>';" -s arg1="\('revamp' 'world'\)"
+$ export arg1=revamp
+$ revamp -f "echo 'hello <arg1>';" world
 echo 'hello world';
-echo 'hello revamp';
 ```
-Another option is to use the ```-s | --set``` argument several times in a row:
-```
-$ revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world
-echo 'hello world';
-echo 'hello revamp';
-``` 
-In addition the ```-s | --set``` argument allows importing values from a file:
-```
-$ cat <<EOF > input.txt
-revamp
-world
-EOF
-$ revamp -f "echo 'hello <arg1>';" -s arg1:input.txt
-echo 'hello world';
-echo 'hello revamp';
-```
-
+ 
 ### Importing csv-files
 
 Data can also be imported from a csv-file using the ```-i | --import``` argument.
@@ -138,7 +127,7 @@ which can be easily accessed using the ```-t | --template``` argument:
 ```
 $ mkdir -p ~/.revamp/templates
 $ echo -n "echo '<arg1> <arg2> - <date_time>'" > ~/.revamp/templates/example
-$ revamp -t example -s arg1=hello -s arg2=revamp
+$ revamp -t example arg1=hello arg2=revamp
 hello revamp - 20200322034102
 ```
 
@@ -194,14 +183,14 @@ web/fuzz/wfuzz-ext
 
 ```revamp``` can be used to easily execute alternating commands in sequence:
 ```
-$ revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world | bash
+$ revamp -f "echo 'hello <arg1>';" arg1=revamp arg1=world | bash
 hello world
 hello revamp
 ```
 
 Using ```xargs``` the resulting commands can also be executed in parallel:
 ```
-revamp -f "echo 'hello <arg1>';" -s arg1=revamp -s arg1=world | xargs --max-procs=4 -I CMD bash -c CMD
+revamp -f "echo 'hello <arg1>';" arg1=revamp arg1=world | xargs --max-procs=4 -I CMD bash -c CMD
 hello world
 hello revamp
 ```

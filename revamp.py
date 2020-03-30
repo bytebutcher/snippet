@@ -22,7 +22,7 @@ except:
     sys.exit(1)
 
 app_name = "revamp"
-app_version = "1.0b"
+app_version = "1.0c"
 
 # Configuration files
 # ===================
@@ -49,27 +49,32 @@ class FormatArgumentParser(object):
         #   PLACEHOLDER:FILE
         separator = self.__get_separator(format_argument)
         return {
-            "=": self.__parse_value,
-            ":": self.__parse_file
+            "=": self.__parse_placeholder_value,
+            ":": self.__parse_placeholder_file,
+            "": self.__parse_value
         }.get(separator)(format_argument, separator)
 
     def __get_separator(self, format_argument):
         string_sep_pos = format_argument.find("=")
         file_sep_pos = format_argument.find(":")
-        if (string_sep_pos <= 0 and file_sep_pos <= 0) or (string_sep_pos > 0 and file_sep_pos > 0):
-            raise Exception("Parsing '{}' failed! Invalid format!".format(format_argument))
-        is_value_sep = string_sep_pos > 0
-        sep = "=" if is_value_sep else ":"
-        return sep
+        if (string_sep_pos <= 0 and file_sep_pos <= 0):
+            # When no separator is found, return an empty string
+            return ""
+        elif (string_sep_pos > 0 and file_sep_pos > 0):
+            # When both separators are found, return the first one found in the format argument
+            return "=" if string_sep_pos < file_sep_pos else ":"
+        else:
+            # When one separator is found, return it
+            return "=" if string_sep_pos > 0 else ":"
 
-    def __parse_value(self, placeholder_value, sep):
+    def __parse_placeholder_value(self, placeholder_value, sep):
         try:
             placeholder, value = placeholder_value.split(sep)
             return {placeholder: value}
         except:
             raise Exception("Parsing '{}' failed! Unknown error!".format(placeholder_value))
 
-    def __parse_file(self, placeholder_file, sep):
+    def __parse_placeholder_file(self, placeholder_file, sep):
         placeholder, file = placeholder_file.split(sep)
         if not os.path.isfile(file):
             raise Exception("Parsing '{}' failed! File not found!".format(placeholder_file))
@@ -83,6 +88,9 @@ class FormatArgumentParser(object):
         except:
             raise Exception("Parsing '{}' failed! Invalid file format!".format(placeholder_file))
 
+    def __parse_value(self, value, sep):
+        return {"": value}
+
 
 class Data(defaultdict):
     """
@@ -92,17 +100,9 @@ class Data(defaultdict):
     def __init__(self):
         super().__init__(list)
 
-    def append(self, placeholder, values=None):
+    def append(self, placeholder, values):
         placeholder_key = placeholder.lower()
-        if values is None:
-            for placeholder, values in FormatArgumentParser().parse(placeholder).items():
-                placeholder_key = placeholder.lower()
-                if isinstance(values, list):
-                    for value in values:
-                        self[placeholder_key].append(value)
-                else:
-                    self[placeholder_key].append(values)
-        elif isinstance(values, list):
+        if isinstance(values, list):
             for value in values:
                 self[placeholder_key].append(value)
         else:
@@ -401,17 +401,15 @@ Examples:
   revamp -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
     """
 )
-parser.add_argument('data_value', metavar='VALUE', nargs='*',
-                    help='Replaces the first unset placeholder found in the format string with a value or a list of '
-                         'values. A list of values can be asigned by enclosing them inside \\( and \\).')
+parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',
+                    help='When no placeholder is specified the first unset placeholder found in the format string will '
+                         'be replaced with the value(s). Otherwise the specified placeholder will be replaced with '
+                         'the value or the content of the file. A list of values can be assigned by explicitly '
+                         'declaring the placeholder (e.g. "ARG1=val1" "ARG1=val2").')
 parser.add_argument('-f', '--format-string', action="store", metavar="FORMAT_STRING",
                     dest='format_string',
                     help="The format of the data to generate. "
                          "The placeholders are identified by less than (<) and greater than (>) signs.")
-parser.add_argument('-s', '--set', action="append", metavar="PLACEHOLDER=VALUE | -s PLACEHOLDER:FILE", dest='data_set',
-                    help="Replaces the placeholder found in the format string with a value or a list of values. "
-                         "A list of values can be asigned by enclosing them inside \\( and \\) or by specifying a "
-                         "file location where values are loaded from.")
 parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='import_file',
                     help="Replace the placeholders found in the format string with the values found in the specified "
                          "file. The file should start with a header which specifies the placeholders. Values should "
@@ -467,16 +465,18 @@ try:
     if arguments.import_file:
         revamp.import_data_file(arguments.import_file)
 
-    if arguments.data_set:
-        for _data in arguments.data_set:
-            revamp.data.append(_data)
+    if arguments.data_values:
+        unset_placeholders = revamp.list_unset_placeholders()
+        for data_val in arguments.data_values:
+            for placeholder, values in FormatArgumentParser().parse(data_val).items():
+                if not placeholder:
+                    if len(unset_placeholders) == 0:
+                        logger.warning("WARNING: Can not assign '{}' to unknown placeholder!".format(values))
+                        continue
+                    placeholder = unset_placeholders.pop(0)
+                revamp.data.append(placeholder, values)
 
     revamp.import_environment(Revamp.ImportEnvironmentMode.default)
-
-    if arguments.data_value:
-        for placeholder in revamp.list_unset_placeholders():
-            if len(arguments.data_value) > 0:
-                revamp.data.append(placeholder, arguments.data_value.pop(0))
 
     if revamp.format_string:
         for line in revamp.build(arguments.filter):
