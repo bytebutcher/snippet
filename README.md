@@ -4,23 +4,24 @@
 has the ability to do complex variable substitutions:
 
 ```
-$ revamp -f "echo '<arg1> <arg2>';" hello revamp
+$ revamp -f "echo 'hello <arg1>';" revamp
 echo 'hello revamp';
 ```
 
 Besides copy and pasting the output where you actually need it you can pipe the result to a command processor 
 which allows direct and easy execution of alternating commands:   
 ```
-$ revamp -f "echo '<arg1> <arg2>';" hello revamp | bash
-hello revamp
+$ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost rhost=github.com | bash
+$ ls
+ping_github.com_20200330060333.log
+ping_localhost_20200330060333.log 
 ```
-
 
 ## Assigning data to placeholders
 To assign data to a placeholder you have several options:
 
 ### Using positional arguments
-The most straight forward way of assigning data to an placeholder is to use positional arguments:
+The most straight forward way of assigning data to a placeholder is to use positional arguments:
 
 ```
 $ revamp -f "echo 'hello <arg1>';" revamp
