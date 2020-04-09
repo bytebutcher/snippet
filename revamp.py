@@ -106,7 +106,7 @@ class Data(defaultdict):
             for value in values:
                 self[placeholder_key].append(value)
         else:
-            if values.startswith('\(') and values.endswith('\)'):
+            if values.startswith('\\(') and values.endswith('\\)'):
                 for value in shlex.split(values[2:-2]):
                     self[placeholder_key].append(value)
             else:
@@ -228,7 +228,7 @@ class DataBuilder(object):
         if self._format_string:
             # Parse placeholders from format string
             # Remove duplicate placeholders while preserving order
-            self._placeholders = list(OrderedDict.fromkeys(placeholder for placeholder in re.findall("<(\w+)>", self._format_string)))
+            self._placeholders = list(OrderedDict.fromkeys(placeholder for placeholder in re.findall(r"<(\w+)>", self._format_string)))
             return list(self._placeholders)
         else:
             return []
