@@ -206,3 +206,12 @@ Make sure to add the ```revamp``` directory to your ```PATH``` or link it accord
 ln -s /path/to/revamp.py /usr/bin/revamp
 ```
 
+## Setup
+
+```
+git clone https://github.com/bytebutcher/revamp
+cd revamp
+python3 -m venv venv
+./venv/bin/python3 install -r requirements.txt
+sudo ln -s $PWD/revamp /usr/bin/revamp
+```
