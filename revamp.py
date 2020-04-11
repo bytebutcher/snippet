@@ -410,6 +410,9 @@ parser.add_argument('-f', '--format-string', action="store", metavar="FORMAT_STR
                     dest='format_string',
                     help="The format of the data to generate. "
                          "The placeholders are identified by less than (<) and greater than (>) signs.")
+parser.add_argument('-e', '--execute', action="store",
+                    dest='do_execute',
+                    help="Executes the resulting strings.")
 parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='import_file',
                     help="Replace the placeholders found in the format string with the values found in the specified "
                          "file. The file should start with a header which specifies the placeholders. Values should "
@@ -468,13 +471,14 @@ try:
     if arguments.data_values:
         unset_placeholders = revamp.list_unset_placeholders()
         for data_val in arguments.data_values:
-            for placeholder, values in FormatArgumentParser().parse(data_val).items():
-                if not placeholder:
-                    if len(unset_placeholders) == 0:
-                        logger.warning("WARNING: Can not assign '{}' to unknown placeholder!".format(values))
-                        continue
-                    placeholder = unset_placeholders.pop(0)
-                revamp.data.append(placeholder, values)
+            if data_val: # Ignore empty string arguments (e.g. ""); use "arg=" instead
+                for placeholder, values in FormatArgumentParser().parse(data_val).items():
+                    if not placeholder:
+                        if len(unset_placeholders) == 0:
+                            logger.warning("WARNING: Can not assign '{}' to unknown placeholder!".format(values))
+                            continue
+                        placeholder = unset_placeholders.pop(0)
+                    revamp.data.append(placeholder, values)
 
     revamp.import_environment(Revamp.ImportEnvironmentMode.default)
 
