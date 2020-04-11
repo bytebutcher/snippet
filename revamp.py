@@ -43,10 +43,15 @@ def init_logger(app_id, log_format="%(module)s: %(lineno)d: %(msg)s"):
 
 class FormatArgumentParser(object):
 
-    def parse(self, format_argument):
+    def parse(self, format_arguments: str):
         # Accepted data set format:
-        #   PLACEHOLDER=VALUE
-        #   PLACEHOLDER:FILE
+        #   PLACEHOLDER=VALUE | PLACEHOLDER:FILE [... PLACEHOLDER=VALUE | PLACEHOLDER:FILE]
+        result = dict()
+        for format_argument in shlex.split(format_arguments):
+            result.update(self.__parse(format_argument))
+        return result
+
+    def __parse(self, format_argument: str):
         separator = self.__get_separator(format_argument)
         return {
             "=": self.__parse_placeholder_value,
@@ -54,7 +59,7 @@ class FormatArgumentParser(object):
             "": self.__parse_value
         }.get(separator)(format_argument, separator)
 
-    def __get_separator(self, format_argument):
+    def __get_separator(self, format_argument: str):
         string_sep_pos = format_argument.find("=")
         file_sep_pos = format_argument.find(":")
         if (string_sep_pos <= 0 and file_sep_pos <= 0):
@@ -67,14 +72,14 @@ class FormatArgumentParser(object):
             # When one separator is found, return it
             return "=" if string_sep_pos > 0 else ":"
 
-    def __parse_placeholder_value(self, placeholder_value, sep):
+    def __parse_placeholder_value(self, placeholder_value: str, sep: str):
         try:
             placeholder, value = placeholder_value.split(sep)
             return {placeholder: value}
         except:
             raise Exception("Parsing '{}' failed! Unknown error!".format(placeholder_value))
 
-    def __parse_placeholder_file(self, placeholder_file, sep):
+    def __parse_placeholder_file(self, placeholder_file: str, sep: str):
         placeholder, file = placeholder_file.split(sep)
         if not os.path.isfile(file):
             raise Exception("Parsing '{}' failed! File not found!".format(placeholder_file))
@@ -88,7 +93,7 @@ class FormatArgumentParser(object):
         except:
             raise Exception("Parsing '{}' failed! Invalid file format!".format(placeholder_file))
 
-    def __parse_value(self, value, sep):
+    def __parse_value(self, value: str, sep: str):
         return {"": value}
 
 
@@ -129,7 +134,6 @@ class Data(defaultdict):
             data_frame = data_frame.query(filter_string)
 
         return data_frame.T
-
 
     def import_from_file(self, import_file_path, delimiter):
         if not os.path.exists(import_file_path):
