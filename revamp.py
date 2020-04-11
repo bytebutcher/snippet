@@ -46,9 +46,10 @@ class FormatArgumentParser(object):
     def parse(self, format_arguments: str):
         # Accepted data set format:
         #   PLACEHOLDER=VALUE | PLACEHOLDER:FILE [... PLACEHOLDER=VALUE | PLACEHOLDER:FILE]
-        result = dict()
+        result = Data()
         for format_argument in shlex.split(format_arguments):
-            result.update(self.__parse(format_argument))
+            for key, value in self.__parse(format_argument).items():
+                result.append(key, value)
         return result
 
     def __parse(self, format_argument: str):
