@@ -1,29 +1,7 @@
 # revamp
 
 ```revamp``` is an advanced highly customizable template based string formatting tool which
-has the ability to do complex variable substitutions and string transformation:
-
-```
-$ revamp -f "echo 'hello <arg1>';" revamp
-echo 'hello revamp';
-
-# Assigning mutliple values
-$ revamp -f "echo 'hello <arg1>';" arg1=revamp world
-echo 'hello revamp';
-echo 'hello world';
-
-# Transforming strings
-$ revamp -f "echo 'hello <arg1>';" -c arg1:b64 revamp
-echo 'hello cmV2YW1w';
-
-# Executing output by piping it to bash
-$ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com | bash
-
-# Using templates and reading arguments from a file
-$ revamp -t net/scan/nmap-ping rhost:targets.txt
-nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
-nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
-```
+has the ability to do complex variable substitutions and string transformation.
 
 ## Setup
 
@@ -46,18 +24,42 @@ ln -s /path/to/revamp.py /usr/bin/revamp
 
 ## Usage
 
-1. [Assigning data to placeholders](#Assigning-data-to-placeholders)
+1. [Overview](#Overview)
+2. [Assigning data to placeholders](#Assigning-data-to-placeholders)
    1. [Using positional arguments](#Using-positional-arguments)
    2. [Using environment variables](#Using-environment-variables)
-   3. [Importing csv-files](#Importing-csv-files)
+   3. [Importing from csv-files](#Importing-from-csv-files)
    4. [Using presets](#Using-presets)
 
-2. [Using string formats](#Using-string-formats)
+3. [Using string formats](#Using-string-formats)
    1. [Using the --format-string argument](#Using-the---format-string-argument)
    2. [Using templates](#Using-templates)
-3. [Transforming strings using codecs](#Transforming-strings-using-codecs)
-4. [Executing commands](#Executing-commands)
-5. [See also](#See-also)
+4. [Transforming strings using codecs](#Transforming-strings-using-codecs)
+5. [Executing commands](#Executing-commands)
+6. [See also](#See-also)
+
+### Overview
+
+The following overview shows various examples of how ```revamp``` can be used:
+```
+# A rather simple string format example using revamp
+$ revamp -f "hello <arg1>" revamp
+hello revamp
+
+# Assigning multiple values and making use of presets
+$ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
+ping -c 1 localhost > ping_localhost_20770413000000.log;
+ping -c 1 github.com > ping_github.com_20770413000000.log;
+
+# Using templates and reading arguments from a file
+$ revamp -t net/scan/nmap-ping rhost:hosts.txt
+nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
+nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
+
+# Transforming strings
+$ revamp -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 revamp
+echo 'hello revamp (cmV2YW1w)';
+```
 
 ### Assigning data to placeholders
 To assign data to a placeholder you have several options:
@@ -114,7 +116,7 @@ $ revamp -f "echo 'hello <arg1>';" world
 echo 'hello world';
 ```
  
-#### Importing csv-files
+#### Importing from csv-files
 
 Data can also be imported from a csv-file using the ```-i | --import``` argument.
 Note, that values must be separated by a tab character
@@ -247,7 +249,7 @@ fa06bfedcbfa6b6d0384baebc644b666
 If you require the initial and the transformed value at the same time ```revamp``` allows to store the transformed value
 in a new placeholder:
 ```
-$ revamp -f "<arg> - <arg2>" -c arg=arg2:b64:md5 arg="hello revamp"
+$ revamp -f "<arg> - <arg2>" -c arg2:arg:b64:md5 arg="hello revamp"
 hello revamp - fa06bfedcbfa6b6d0384baebc644b666
 ```
 

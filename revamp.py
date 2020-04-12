@@ -191,12 +191,9 @@ class CodecFormatStringParser(object):
         codecs = None
         try:
             if "=" in codec_format_string:
-                placeholder, codec_format = codec_format_string.split("=")
-                codecs = codec_format.split(":")
-                placeholder_new = codecs.pop(0)
-            else:
-                codecs = codec_format_string.split(":")
-                placeholder = codecs.pop(0)
+                new_placeholder, codec_format_string = codec_format_string.split("=")
+            codecs = codec_format_string.split(":")
+            placeholder = codecs.pop(0)
         except:
             raise Exception("Transforming placeholders failed! Invalid codec format!")
 
@@ -557,10 +554,10 @@ def __main__():
     parser.add_argument('-tL', '--templates-list', action="store_true",
                         dest='list_templates',
                         help="Lists all available templates.")
-    parser.add_argument('-c', '--codec', action="append", metavar="PLACEHOLDER[=NEW_PLACEHOLDER]:CODEC[:CODEC ...]",
+    parser.add_argument('-c', '--codec', action="append", metavar="[NEW_PLACEHOLDER=]PLACEHOLDER:CODEC[:CODEC ...]",
                         dest='codec_format_strings',
                         help="Transforms the value assigned to the placeholder using the specified codecs. The result does "
-                             "either replace the initial value or is accessible under the new name.")
+                             "either replace the initial value or is accessible under the new placeholder name.")
     parser.add_argument('-cL', '--codec-list', action="store_true",
                         dest='codec_list',
                         help="Lists all available codecs.")
