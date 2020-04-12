@@ -1,26 +1,55 @@
 # revamp
 
-```revamp``` is an advanced template based string formatting tool which 
-has the ability to do complex variable substitutions:
+```revamp``` is an advanced highly customizable template based string formatting tool which
+has the ability to do complex variable substitutions and string transformation:
 
 ```
 $ revamp -f "echo 'hello <arg1>';" revamp
 echo 'hello revamp';
-```
 
-Besides copy and pasting the output where you actually need it you can pipe the result to a command processor 
-which allows direct and easy execution of alternating commands:   
-```
+# Assigning mutliple values
+$ revamp -f "echo 'hello <arg1>';" arg1=revamp world
+echo 'hello revamp';
+echo 'hello world';
+
+# Transforming strings
+$ revamp -f "echo 'hello <arg1>';" -c arg1:b64 revamp
+echo 'hello cmV2YW1w';
+
+# Executing output by piping it to bash
 $ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com | bash
-$ ls
-ping_github.com_20200330060333.log
-ping_localhost_20200330060333.log 
+
+# Using templates and reading arguments from a file
+$ revamp -t net/scan/nmap-ping rhost:targets.txt
+nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
+nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
 ```
 
-## Assigning data to placeholders
+## Setup
+
+```
+git clone https://github.com/bytebutcher/revamp
+cd revamp
+python3 -m venv venv
+./venv/bin/python3 install -r requirements.txt
+sudo ln -s $PWD/revamp /usr/bin/revamp
+```
+
+To enable bash-completion you might add following line to your .bashrc:
+```bash
+eval "$(register-python-argcomplete revamp)"
+```
+Make sure to add the ```revamp``` directory to your ```PATH``` or link it accordingly:
+```
+ln -s /path/to/revamp.py /usr/bin/revamp
+```
+
+## Usage
+
+### Assigning data to placeholders
 To assign data to a placeholder you have several options:
 
-### Using positional arguments
+#### Using positional arguments
 The most straight forward way of assigning data to a placeholder is to use positional arguments:
 
 ```
@@ -47,7 +76,7 @@ echo 'hello world';
 echo 'hello revamp';
 ```
 
-### Using environment variables
+#### Using environment variables
 
 ```revamp``` evaluates environment variables and assigns data to any unset 
 placeholder. To avoid running into conflict with other environment variables ```revamp``` only evaluates 
@@ -72,7 +101,7 @@ $ revamp -f "echo 'hello <arg1>';" world
 echo 'hello world';
 ```
  
-### Importing csv-files
+#### Importing csv-files
 
 Data can also be imported from a csv-file using the ```-i | --import``` argument.
 Note, that values must be separated by a tab character
@@ -89,7 +118,7 @@ echo 'hello world';
 echo 'hello revamp';
 ```
 
-### Presets
+#### Presets
 
 ```revamp``` ships with a customizable set of preset placeholders which can be 
 directly used in your format string 
@@ -100,11 +129,11 @@ $ revamp -f "echo '<date_time>';"
 echo '20200322034102';
 ```
 
-## Using string formats
+### Using string formats
 
 To use string formats you have several options:
 
-### Using the --format-string argument
+#### Using the --format-string argument
 
 If you read the previous section you already know the ```-f | --format-string``` argument:
 
@@ -113,7 +142,7 @@ $ revamp -f "echo 'hello revamp';"
 echo 'hello revamp';
 ```
 
-### Environment variables
+#### Environment variables
 ```revamp``` allows setting the string format using the ```FORMAT_STRING``` environment variable:
 ```
 $ export FORMAT_STRING="echo 'hello revamp';"
@@ -121,7 +150,7 @@ $ revamp
 echo 'hello revamp';
 ```
 
-### Templates
+#### Templates
 
 If you want to persist your format string you can add them to ```revamp```'s template directory
 which can be easily accessed using the ```-t | --template``` argument:
@@ -180,7 +209,7 @@ web/fuzz/wfuzz-basic
 web/fuzz/wfuzz-ext
 ```
 
-## Codecs
+### Codecs
 
 ```revamp``` supports simple string transformation. A list of available codecs can be viewed by using the
 ```--codec-list | -cL``` argument:
@@ -217,7 +246,7 @@ $ revamp -f "<arg> - <arg2>" -c arg=arg2:b64:md5 arg="hello revamp"
 hello revamp - fa06bfedcbfa6b6d0384baebc644b666
 ```
 
-## Command Execution
+### Command Execution
 
 ```revamp``` can be used to easily execute alternating commands in sequence:
 ```
@@ -233,22 +262,15 @@ hello world
 hello revamp
 ```
 
-## Configuration
-To enable bash-completion add following line to your .bashrc:
-```bash
-eval "$(register-python-argcomplete revamp)"
-```
-Make sure to add the ```revamp``` directory to your ```PATH``` or link it accordingly:
-```
-ln -s /path/to/revamp.py /usr/bin/revamp
-```
+## See also
 
-## Setup
+To make the most out of this tool you might also consider to look into the following projects:
+* [leval](https://github.com/bytebutcher/leval) - the lesser eval
+* [interactive](https://github.com/bytebutcher/interactive) - make arbitrary commands interactive
+* [bgl](https://github.com/bytebutcher/bgl) - manage global bash environment variables
 
+Here is a rather advanced example of how ```interactive```, ```leval``` and ```revamp``` play together:
 ```
-git clone https://github.com/bytebutcher/revamp
-cd revamp
-python3 -m venv venv
-./venv/bin/python3 install -r requirements.txt
-sudo ln -s $PWD/revamp /usr/bin/revamp
+# Make revamp interactive and evaluate output using leval before executing it
+$ interactive -p "leval --print-stdout" revamp -f "[format]" [args]
 ```
