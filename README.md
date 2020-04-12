@@ -46,6 +46,19 @@ ln -s /path/to/revamp.py /usr/bin/revamp
 
 ## Usage
 
+1. [Assigning data to placeholders](#Assigning-data-to-placeholders)
+   1. [Using positional arguments](#Using-positional-arguments)
+   2. [Using environment variables](#Using-environment-variables)
+   3. [Importing csv-files](#Importing-csv-files)
+   4. [Using presets](#Using-presets)
+
+2. [Using string formats](#Using-string-formats)
+   1. [Using the --format-string argument](#Using-the---format-string-argument)
+   2. [Using templates](#Using-templates)
+3. [Transforming strings using codecs](#Transforming-strings-using-codecs)
+4. [Executing commands](#Executing-commands)
+5. [See also](#See-also)
+
 ### Assigning data to placeholders
 To assign data to a placeholder you have several options:
 
@@ -118,7 +131,7 @@ echo 'hello world';
 echo 'hello revamp';
 ```
 
-#### Presets
+#### Using presets
 
 ```revamp``` ships with a customizable set of preset placeholders which can be 
 directly used in your format string 
@@ -142,15 +155,7 @@ $ revamp -f "echo 'hello revamp';"
 echo 'hello revamp';
 ```
 
-#### Environment variables
-```revamp``` allows setting the string format using the ```FORMAT_STRING``` environment variable:
-```
-$ export FORMAT_STRING="echo 'hello revamp';"
-$ revamp
-echo 'hello revamp';
-```
-
-#### Templates
+#### Using templates
 
 If you want to persist your format string you can add them to ```revamp```'s template directory
 which can be easily accessed using the ```-t | --template``` argument:
@@ -209,7 +214,7 @@ web/fuzz/wfuzz-basic
 web/fuzz/wfuzz-ext
 ```
 
-### Codecs
+### Transforming strings using codecs
 
 ```revamp``` supports simple string transformation. A list of available codecs can be viewed by using the
 ```--codec-list | -cL``` argument:
@@ -246,7 +251,7 @@ $ revamp -f "<arg> - <arg2>" -c arg=arg2:b64:md5 arg="hello revamp"
 hello revamp - fa06bfedcbfa6b6d0384baebc644b666
 ```
 
-### Command Execution
+### Executing commands
 
 ```revamp``` can be used to easily execute alternating commands in sequence:
 ```
