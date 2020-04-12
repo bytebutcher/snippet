@@ -11,7 +11,7 @@ echo 'hello revamp';
 Besides copy and pasting the output where you actually need it you can pipe the result to a command processor 
 which allows direct and easy execution of alternating commands:   
 ```
-$ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost rhost=github.com | bash
+$ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com | bash
 $ ls
 ping_github.com_20200330060333.log
 ping_localhost_20200330060333.log 
@@ -28,15 +28,15 @@ $ revamp -f "echo 'hello <arg1>';" revamp
 echo 'hello revamp';
 ```
 
-To assign multiple values to a specific placeholder you can explicitly declare the placeholder to which the 
+To assign multiple values to a specific placeholder you need to explicitly declare the placeholder to which the
 value should be assigned to:
 ```
-$ revamp -f "echo 'hello <arg1>';" arg1=revamp arg1=world
+$ revamp -f "echo 'hello <arg1>';" arg1=revamp world
 echo 'hello revamp';
 echo 'hello world';
 ```
 
-However, values can also be directly imported from a file:
+In addition values can be directly imported from a file:
 ```
 $ cat <<EOF > input.txt
 revamp
@@ -135,17 +135,17 @@ hello revamp - 20200322034102
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
 template names. 
 
-If you want to review a specific template you can use the ```-v | --view-template``` argument:
+If you want to review a specific template you can use the ```-tV | --template-view``` argument:
 ```
-$ revamp -t example -v
+$ revamp -t example -tV
 echo '<arg1> <arg2> - <date_time>'
 ```
 
-To list all available templates you can use the ```-l | --list-templates``` 
+To list all available templates you can use the ```-tL | --template-list```
 parameter:
 
 ```
-$ revamp -l
+$ revamp -tL
 net/enum/enum4linux-basic
 net/scan/nmap-basic
 net/scan/nmap-ping
@@ -220,7 +220,7 @@ hello revamp - fa06bfedcbfa6b6d0384baebc644b666
 
 ```revamp``` can be used to easily execute alternating commands in sequence:
 ```
-$ revamp -f "echo 'hello <arg1>';" arg1=revamp arg1=world | bash
+$ revamp -f "echo 'hello <arg1>';" arg1=revamp world | bash
 hello world
 hello revamp
 ```
