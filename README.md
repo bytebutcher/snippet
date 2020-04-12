@@ -204,13 +204,14 @@ $ revamp -f "<arg>" -c arg:b64 arg="hello revamp"
 aGVsbG8gcmV2YW1w
 ```
 
-Codecs can be piped:
+To do a subsequent string transformation on the same placeholder just specify another codec:
 ```
 $ revamp -f "<arg>" -c arg:b64:md5 arg="hello revamp"
 fa06bfedcbfa6b6d0384baebc644b666
 ```
 
-The result can be stored in a new placeholder:
+If you require the initial and the transformed value at the same time ```revamp``` allows to store the transformed value
+in a new placeholder:
 ```
 $ revamp -f "<arg> - <arg2>" -c arg=arg2:b64:md5 arg="hello revamp"
 hello revamp - fa06bfedcbfa6b6d0384baebc644b666
