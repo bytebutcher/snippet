@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import shlex
 import traceback
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, namedtuple
 from enum import Enum
 
 import argcomplete, argparse
@@ -13,7 +13,6 @@ import os
 import sys
 import itertools
 
-
 try:
     import pandas as pd
 except:
@@ -22,7 +21,7 @@ except:
     sys.exit(1)
 
 app_name = "revamp"
-app_version = "1.0c"
+app_version = "1.0d"
 
 # Configuration files
 # ===================
@@ -32,25 +31,39 @@ app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".re
 home_config_path = os.path.join(str(Path.home()), ".revamp")
 
 
-def init_logger(app_id, log_format="%(module)s: %(lineno)d: %(msg)s"):
-    logger = logging.getLogger(app_id)
-    logging.root.setLevel(logging.DEBUG)
-    hdlr = logging.StreamHandler(sys.stderr)
-    hdlr.setFormatter(logging.Formatter(log_format))
-    logger.addHandler(hdlr)
-    return logger
-
-
 class FormatArgumentParser(object):
 
     def parse(self, format_arguments: str):
         # Accepted data set format:
         #   PLACEHOLDER=VALUE | PLACEHOLDER:FILE [... PLACEHOLDER=VALUE | PLACEHOLDER:FILE]
         result = Data()
-        for format_argument in shlex.split(format_arguments):
+        for format_argument in self.__reformat_arguments(format_arguments):
             for key, value in self.__parse(format_argument).items():
                 result.append(key, value)
         return result
+
+    def __reformat_arguments(self, format_arguments: str) -> list:
+        """
+        Reformats format arguments which were passed as single string but contain multiple placeholders with values
+        while missing the necessary quotes to parse them correctly with shlex.
+        :param format_arguments: the format arguments (e.g. "placeholder1=a b c placeholder2=d e f")
+        :return: a reformatted list of format arguments (e.g. ["placeholder1=a b c", "placeholder2=d e f"])
+        """
+        reformatted_arguments = []
+        reformatted_argument = []
+        is_initialized = False
+        for format_argument in shlex.split(format_arguments):
+            if "=" in format_argument or ":" in format_argument:
+                if not is_initialized:
+                    is_initialized = True
+                    reformatted_argument.append(format_argument)
+                else:
+                    reformatted_arguments.append(" ".join(reformatted_argument))
+                    reformatted_argument = [format_argument]
+            else:
+                reformatted_argument.append(format_argument)
+        reformatted_arguments.append(" ".join(reformatted_argument))
+        return reformatted_arguments
 
     def __parse(self, format_argument: str):
         separator = self.__get_separator(format_argument)
@@ -153,20 +166,71 @@ class Data(defaultdict):
             raise Exception("Importing '{}' failed! Invalid file format!".format(import_file_path))
 
 
+class Codec(object):
+
+    def __init__(self, author, dependencies):
+        self.author = author
+        self.dependencies = dependencies
+
+    def name(self):
+        return self.__class__.__name__
+
+    def run(self, text):
+        pass
+
+
+CodecFormat = namedtuple("CodecFormat", "placeholder placeholder_new codecs")
+
+
+class CodecFormatStringParser(object):
+
+    def parse(self, codec_format_string):
+        # PLACEHOLDER[=NEW_PLACEHOLDER]:CODEC[:CODEC ...]
+        placeholder = None
+        placeholder_new = None
+        codecs = None
+        try:
+            if "=" in codec_format_string:
+                placeholder, codec_format = codec_format_string.split("=")
+                codecs = codec_format.split(":")
+                placeholder_new = codecs.pop(0)
+            else:
+                codecs = codec_format_string.split(":")
+                placeholder = codecs.pop(0)
+        except:
+            raise Exception("Transforming placeholders failed! Invalid codec format!")
+
+        if not codecs:
+            raise Exception("Transforming placeholders failed! Invalid codec format!")
+
+        return CodecFormat(placeholder, placeholder_new, codecs)
+
+
 class Config(object):
 
-    def __init__(self, paths):
+    def __init__(self, app_name, paths):
         self.paths = paths
         self.format_template_paths = [os.path.join(path, "templates") for path in paths]
+        self.codec_paths = [os.path.join(path, "codecs") for path in paths]
+        self.logger = self.__init_logger(app_name, "%(msg)s")
         self.profile = self.__load_profile()
+        self.codecs = self.__load_codecs()
         self._reserved_placeholder_values = []
+
+    def __init_logger(self, app_id, log_format="%(module)s: %(lineno)d: %(msg)s"):
+        logger = logging.getLogger(app_id)
+        logging.root.setLevel(logging.INFO)
+        hdlr = logging.StreamHandler(sys.stderr)
+        hdlr.setFormatter(logging.Formatter(log_format))
+        logger.addHandler(hdlr)
+        return logger
 
     def __load_profile(self):
         for profile_path in self.paths:
             if os.path.exists(profile_path):
                 try:
                     # Since the path may contain special characters which can not be processed by the __import__
-                    # function we temporary add the template path in which the profile.py is located to the PATH.
+                    # function we temporary add the path in which the profile.py is located to the PATH.
                     sys.path.append(profile_path)
                     profile = __import__("revamp_profile").Profile()
                     sys.path.pop()
@@ -174,6 +238,37 @@ class Config(object):
                 except:
                     pass
         return None
+
+    def __load_codecs(self):
+
+        def to_camel_case(word):
+            return ''.join(x.capitalize() or '_' for x in word.split('_'))
+
+        codecs = {}
+        for codec_path in self.codec_paths:
+            # Since the path may contain special characters which can not be processed by the __import__
+            # function we temporary add the path in which the codecs are located to the PATH.
+            if os.path.exists(codec_path):
+                dirs = []
+                for r, d, f in os.walk(codec_path):
+                    for dir in d:
+                        if not dir.startswith("__"):
+                            dirs.append(dir)
+
+                for dir in dirs:
+                    sys.path.append(os.path.join(codec_path, dir))
+                    for r, d, f in os.walk(os.path.join(codec_path, dir)):
+                        for file in f:
+                            filename, ext = os.path.splitext(file)
+                            if ext == ".py":
+                                classname = str(to_camel_case(filename))
+                                try:
+                                    codecs[filename] = getattr(__import__(filename), classname)()
+                                except Exception as e:
+                                    self.logger.warning("WARNING: Loading codec {} failed!".format(filename))
+                    sys.path.pop()
+
+        return codecs
 
     def get_reserved_placeholders(self):
         if self.profile:
@@ -220,11 +315,12 @@ class Config(object):
 
 class DataBuilder(object):
 
-    def __init__(self, format_string, data, config):
+    def __init__(self, format_string, data, codec_formats, config):
         self._format_string = format_string
         self._placeholders = []
         self.data = data
         self.config = config
+        self.codec_formats = codec_formats
 
     def get_placeholders(self):
         if self._placeholders:
@@ -233,7 +329,8 @@ class DataBuilder(object):
         if self._format_string:
             # Parse placeholders from format string
             # Remove duplicate placeholders while preserving order
-            self._placeholders = list(OrderedDict.fromkeys(placeholder for placeholder in re.findall(r"<(\w+)>", self._format_string)))
+            self._placeholders = list(
+                OrderedDict.fromkeys(placeholder for placeholder in re.findall(r"<(\w+)>", self._format_string)))
             return list(self._placeholders)
         else:
             return []
@@ -251,18 +348,16 @@ class DataBuilder(object):
                 temporary_data[placeholder] = OrderedDict.fromkeys(self.data[placeholder])
 
         reserved_placeholder_values = self.config.get_reserved_placeholder_values()
-        if any(reserved_placeholder in temporary_data.keys() for reserved_placeholder in reserved_placeholder_values.keys()):
+        if any(reserved_placeholder in temporary_data.keys() for reserved_placeholder in
+               reserved_placeholder_values.keys()):
             raise Exception("{} is/are already defined in your profile!".format(
-                    ', '.join(["<" + placeholder + ">" for placeholder in reserved_placeholder_values.keys() if placeholder in temporary_data])))
+                ', '.join(["<" + placeholder + ">" for placeholder in reserved_placeholder_values.keys() if
+                           placeholder in temporary_data])))
 
         for placeholder, value in reserved_placeholder_values.items():
             if placeholder in placeholders:
                 # Add to temporary data. Remove duplicates while preserving order
                 temporary_data[placeholder] = OrderedDict.fromkeys(value)
-
-        unset_placeholders = [placeholder for placeholder in placeholders if placeholder not in temporary_data]
-        if unset_placeholders:
-            raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
         # Create matrix from data e.g. (('a','d'), ('b','d'), ('c','d'))
         data_matrix = list(itertools.product(*[temporary_data[key] for key in temporary_data.keys()]))
@@ -285,6 +380,26 @@ class DataBuilder(object):
 
         return data_frame
 
+    def apply_codecs(self, data_frame):
+        for placeholder in data_frame.keys():
+            if placeholder in self.codec_formats.keys():
+                new_values = []
+                for value in data_frame[placeholder]:
+                    new_value = value
+                    for codec in self.codec_formats[placeholder].codecs:
+                        new_value = self.config.codecs[codec].run(new_value)
+                    new_values.append(new_value)
+
+                placeholder_new = self.codec_formats[placeholder].placeholder_new
+                if placeholder_new:
+                    if placeholder_new in data_frame.keys():
+                        raise Exception("Transforming placeholder {} to {} failed! The placeholder {} is already defined!".format(
+                            placeholder, placeholder_new, placeholder_new
+                        ))
+                    data_frame[placeholder_new] = new_values
+                else:
+                    data_frame[placeholder] = new_values
+
     def build(self, filter_string=None):
         result = []
         if self._format_string:
@@ -292,7 +407,13 @@ class DataBuilder(object):
             if len(data_frame) == 0:
                 return [self._format_string]
 
+            self.apply_codecs(data_frame)
+
             placeholders = self.get_placeholders()
+            unset_placeholders = [placeholder for placeholder in placeholders if placeholder not in data_frame.keys()]
+            if unset_placeholders:
+                raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
+
             for index, row in data_frame.iterrows():
                 # Replace placeholders in format string with values
                 output_line = self._format_string
@@ -304,7 +425,6 @@ class DataBuilder(object):
 
 
 class Revamp(object):
-
     class ImportEnvironmentMode(Enum):
         default = 1
         append = 2
@@ -312,6 +432,7 @@ class Revamp(object):
         ignore = 4
 
     format_string = None
+    codec_formats = {}
     data = Data()
 
     def __init__(self, config: Config):
@@ -328,6 +449,13 @@ class Revamp(object):
         else:
             return template_names
 
+    def list_codecs(self, filter_string=None):
+        if filter_string:
+            return sorted([codec_name for codec_name in self.config.codecs.keys() if
+                    filter_string in self.config.codecs.keys()])
+        else:
+            return sorted(self.config.codecs.keys())
+
     def list_options(self, filter_string=None):
         temporary_data = Data()
         for placeholder in self.data.keys():
@@ -338,7 +466,7 @@ class Revamp(object):
         return temporary_data.to_data_frame()
 
     def list_placeholders(self):
-        return DataBuilder(self.format_string, self.data, self.config).get_placeholders()
+        return DataBuilder(self.format_string, self.data, self.codec_formats, self.config).get_placeholders()
 
     def list_reserved_placeholders(self):
         return self.config.get_reserved_placeholder_names()
@@ -379,121 +507,151 @@ class Revamp(object):
                             _import_environment(placeholder, data)
 
     def build(self, filter_string=None):
-        return DataBuilder(self.format_string, self.data, self.config).build(filter_string)
+        return DataBuilder(self.format_string, self.data, self.codec_formats, self.config).build(filter_string)
 
 
-config = Config([home_config_path, app_config_path])
-revamp = Revamp(config)
+def __main__():
+    config = Config(app_name, [home_config_path, app_config_path])
+    logger = config.logger
+    revamp = Revamp(config)
 
+    def argparse_template_completer(prefix, parsed_args, **kwargs):
+        return config.get_format_template_names()
 
-def argparse_template_completer(prefix, parsed_args, **kwargs):
-    return config.get_format_template_names()
+    parser = argparse.ArgumentParser(
+        description='revamp',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+    Placeholder presets:
+    
+    """ + os.linesep.join(["  {} {}".format(("<" + x.name + ">").ljust(20), x.description) for x in
+                           config.get_reserved_placeholders()]) + """
+    
+    Examples:
+    
+      revamp -s target=localhost     -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
+      revamp -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
+        """
+    )
+    parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',
+                        help='When no placeholder is specified the first unset placeholder found in the format string will '
+                             'be replaced with the value(s). Otherwise the specified placeholder will be replaced with '
+                             'the value or the content of the file. A list of values can be assigned by explicitly '
+                             'declaring the placeholder (e.g. "ARG1=val1" "ARG1=val2").')
+    parser.add_argument('-f', '--format-string', action="store", metavar="FORMAT_STRING",
+                        dest='format_string',
+                        help="The format of the data to generate. "
+                             "The placeholders are identified by less than (<) and greater than (>) signs.")
+    parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='import_file',
+                        help="Replace the placeholders found in the format string with the values found in the specified "
+                             "file. The file should start with a header which specifies the placeholders. Values should "
+                             "be separated by a tab character which can be customized in the profile file. ")
+    parser.add_argument('-t', '--template', action="store", metavar="FILE",
+                        dest='template_name',
+                        help="The template to use as format string.") \
+        .completer = argparse_template_completer
+    parser.add_argument('-tV', '--template-view', action="store_true",
+                        dest='view_template',
+                        help="Views the template instead of using it as generator. Can only be used in combination with "
+                             "the --template argument.")
+    parser.add_argument('-tL', '--templates-list', action="store_true",
+                        dest='list_templates',
+                        help="Lists all available templates.")
+    parser.add_argument('-c', '--codec', action="append", metavar="PLACEHOLDER[=NEW_PLACEHOLDER]:CODEC[:CODEC ...]",
+                        dest='codec_format_strings',
+                        help="Transforms the value assigned to the placeholder using the specified codecs. The result does "
+                             "either replace the initial value or is accessible under the new name.")
+    parser.add_argument('-cL', '--codec-list', action="store_true",
+                        dest='codec_list',
+                        help="Lists all available codecs.")
+    parser.add_argument('--filter', action="store", metavar="STRING", dest='filter',
+                        help="The filter to include/exclude results "
+                             "(e.g. --filter 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
+    parser.add_argument('-d', '--debug', action="store_true",
+                        dest='debug',
+                        help="Activates the debug mode.")
 
+    argcomplete.autocomplete(parser)
+    arguments = parser.parse_args()
 
-logger = init_logger(app_name, "%(msg)s")
+    config.logger.setLevel(logging.DEBUG if arguments.debug else logging.INFO)
 
-parser = argparse.ArgumentParser(
-    description='revamp',
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog="""
-Placeholder presets:
+    try:
+        if arguments.codec_list and arguments.list_templates:
+            raise Exception("--codec-list can not be used in combination with --template-list!")
 
-""" + os.linesep.join(["  {} {}".format(("<" + x.name + ">").ljust(20), x.description) for x in config.get_reserved_placeholders()]) + """
-
-Examples:
-
-  revamp -s target=localhost     -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
-  revamp -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
-    """
-)
-parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',
-                    help='When no placeholder is specified the first unset placeholder found in the format string will '
-                         'be replaced with the value(s). Otherwise the specified placeholder will be replaced with '
-                         'the value or the content of the file. A list of values can be assigned by explicitly '
-                         'declaring the placeholder (e.g. "ARG1=val1" "ARG1=val2").')
-parser.add_argument('-f', '--format-string', action="store", metavar="FORMAT_STRING",
-                    dest='format_string',
-                    help="The format of the data to generate. "
-                         "The placeholders are identified by less than (<) and greater than (>) signs.")
-parser.add_argument('-e', '--execute', action="store",
-                    dest='do_execute',
-                    help="Executes the resulting strings.")
-parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='import_file',
-                    help="Replace the placeholders found in the format string with the values found in the specified "
-                         "file. The file should start with a header which specifies the placeholders. Values should "
-                         "be separated by a tab character which can be customized in the profile file. ")
-parser.add_argument('-t', '--template', action="store", metavar="FILE",
-                    dest='template_name',
-                    help="The template to use as format string.")\
-    .completer = argparse_template_completer
-parser.add_argument('-v', '--view-template', action="store_true",
-                    dest='view_template',
-                    help="Views the template instead of using it as generator. Can only be used in combination with "
-                         "the --template argument.")
-parser.add_argument('-l', '--list-templates', action="store_true",
-                    dest='list_templates',
-                    help="Lists all available templates.")
-parser.add_argument('--filter', action="store", metavar="STRING", dest='filter',
-                    help="The filter to include/exclude results "
-                         "(e.g. --filter 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
-parser.add_argument('-d', '--debug', action="store_true",
-                    dest='debug',
-                    help="Activates the debug mode.")
-
-argcomplete.autocomplete(parser)
-arguments = parser.parse_args()
-
-try:
-    if arguments.list_templates:
-        template_names = revamp.list_templates()
-        if not template_names:
-            logger.warning("WARNING: No templates found!")
-        for template_name in template_names:
-            print(template_name)
-        sys.exit(0)
-
-    if arguments.format_string and arguments.template_name:
-        raise Exception("--format-string can not be used in conjunction with --template!")
-
-    if arguments.format_string:
-        revamp.format_string = arguments.format_string
-
-    if arguments.view_template and not arguments.template_name:
-        raise Exception("--view-template must be used in combination with --template!")
-
-    if arguments.template_name:
-        format_string = revamp.use_template(arguments.template_name)
-        if arguments.view_template:
-            print(format_string)
+        if arguments.list_templates:
+            template_names = revamp.list_templates()
+            if not template_names:
+                logger.warning("WARNING: No templates found!")
+            for template_name in template_names:
+                print(template_name)
             sys.exit(0)
 
-    if not revamp.format_string:
-        revamp.format_string = os.environ.get("FORMAT_STRING")
+        if arguments.codec_list:
+            codec_names = revamp.list_codecs()
+            if not codec_names:
+                logger.warning("WARNING: No codecs found!")
+            for codec_name in codec_names:
+                print(codec_name)
+            sys.exit(9)
 
-    if arguments.import_file:
-        revamp.import_data_file(arguments.import_file)
+        if arguments.format_string and arguments.template_name:
+            raise Exception("--format-string can not be used in conjunction with --template!")
 
-    if arguments.data_values:
-        unset_placeholders = revamp.list_unset_placeholders()
-        for data_val in arguments.data_values:
-            if data_val: # Ignore empty string arguments (e.g. ""); use "arg=" instead
-                for placeholder, values in FormatArgumentParser().parse(data_val).items():
-                    if not placeholder:
-                        if len(unset_placeholders) == 0:
-                            logger.warning("WARNING: Can not assign '{}' to unknown placeholder!".format(values))
-                            continue
-                        placeholder = unset_placeholders.pop(0)
-                    revamp.data.append(placeholder, values)
+        if arguments.format_string:
+            revamp.format_string = arguments.format_string
 
-    revamp.import_environment(Revamp.ImportEnvironmentMode.default)
+        if arguments.view_template and not arguments.template_name:
+            raise Exception("--view-template must be used in combination with --template!")
 
-    if revamp.format_string:
-        for line in revamp.build(arguments.filter):
-            print(line)
-    else:
-        print(revamp.list_options())
-except Exception as e:
-    logger.error("ERROR: {}".format(e))
-    if arguments.debug:
-        traceback.print_exc()
-    sys.exit(1)
+        if arguments.template_name:
+            format_string = revamp.use_template(arguments.template_name)
+            if arguments.view_template:
+                print(format_string)
+                sys.exit(0)
+
+        if arguments.codec_format_strings:
+            codec_formats = {}
+            for codec_format_string in arguments.codec_format_strings:
+                codec_format = CodecFormatStringParser().parse(codec_format_string)
+                for codec in codec_format.codecs:
+                    if codec not in revamp.list_codecs():
+                        raise Exception("Unknown codec {}!".format(codec))
+                codec_formats[codec_format.placeholder] = codec_format
+            revamp.codec_formats = codec_formats
+
+        if not revamp.format_string:
+            revamp.format_string = os.environ.get("FORMAT_STRING")
+
+        if arguments.import_file:
+            revamp.import_data_file(arguments.import_file)
+
+        if arguments.data_values:
+            unset_placeholders = revamp.list_unset_placeholders()
+            for data_val in arguments.data_values:
+                if data_val:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
+                    for placeholder, values in FormatArgumentParser().parse(data_val).items():
+                        if not placeholder:
+                            if len(unset_placeholders) == 0:
+                                logger.warning("WARNING: Can not assign '{}' to unknown placeholder!".format(values))
+                                continue
+                            placeholder = unset_placeholders.pop(0)
+                        revamp.data.append(placeholder, values)
+
+        revamp.import_environment(Revamp.ImportEnvironmentMode.default)
+
+        if revamp.format_string:
+            for line in revamp.build(arguments.filter):
+                print(line)
+        else:
+            print(revamp.list_options())
+    except Exception as e:
+        logger.error("ERROR: {}".format(e))
+        if arguments.debug:
+            traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    __main__()

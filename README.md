@@ -180,6 +180,42 @@ web/fuzz/wfuzz-basic
 web/fuzz/wfuzz-ext
 ```
 
+## Codecs
+
+```revamp``` supports simple string transformation. A list of available codecs can be viewed by using the
+```--codec-list | -cL``` argument:
+
+```
+$ revamp -cL
+b64
+md5
+safe_filename
+sha1
+sha256
+sha512
+url
+url_plus
+```
+
+To transform a placeholder use the ```--codec | -c``` argument by specifying the placeholder to transform and the codec
+to use:
+```
+$ revamp -f "<arg>" -c arg:b64 arg="hello revamp"
+aGVsbG8gcmV2YW1w
+```
+
+Codecs can be piped:
+```
+$ revamp -f "<arg>" -c arg:b64:md5 arg="hello revamp"
+fa06bfedcbfa6b6d0384baebc644b666
+```
+
+The result can be stored in a new placeholder:
+```
+$ revamp -f "<arg> - <arg2>" -c arg=arg2:b64:md5 arg="hello revamp"
+hello revamp - fa06bfedcbfa6b6d0384baebc644b666
+```
+
 ## Command Execution
 
 ```revamp``` can be used to easily execute alternating commands in sequence:
