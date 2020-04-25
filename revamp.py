@@ -526,8 +526,17 @@ def __main__():
     
     Examples:
     
-      revamp -s target=localhost     -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
-      revamp -s target:./targets.txt -c "nmap -sS -p- <target> -oA nmap-syn-all_<target>_<date_time>"
+        # A rather simple string format example using revamp
+        $ revamp -f "hello <arg1>" revamp
+        
+        # Assigning multiple values and making use of presets
+        $ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
+        
+        # Using templates and reading arguments from a file
+        $ revamp -t net/scan/nmap-ping rhost:hosts.txt
+        
+        # Transforming strings
+        $ revamp -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 revamp
         """
     )
     parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',
