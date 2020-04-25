@@ -596,17 +596,26 @@ def __main__():
         if arguments.format_string and arguments.template_name:
             raise Exception("--format-string can not be used in conjunction with --template!")
 
-        if arguments.format_string:
-            revamp.format_string = arguments.format_string
+        if arguments.format_string and not sys.stdin.isatty():
+            raise Exception("--format-string can not be used in conjunction with piped input!")
+
+        if arguments.template_name and not sys.stdin.isatty():
+            raise Exception("--template can not be used in conjunction with piped input!")
 
         if arguments.view_template and not arguments.template_name:
             raise Exception("--view-template must be used in combination with --template!")
+
+        if arguments.format_string:
+            revamp.format_string = arguments.format_string
 
         if arguments.template_name:
             format_string = revamp.use_template(arguments.template_name)
             if arguments.view_template:
                 print(format_string)
                 sys.exit(0)
+
+        if not sys.stdin.isatty():
+            revamp.format_string = sys.stdin.readline().rstrip()
 
         if arguments.codec_format_strings:
             codec_formats = {}

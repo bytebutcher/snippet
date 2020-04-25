@@ -157,6 +157,14 @@ $ revamp -f "echo 'hello revamp';"
 echo 'hello revamp';
 ```
 
+#### Using input from a pipe
+
+Another option to set the string format is by using a pipe:
+```
+$ echo "echo 'hello revamp'" | revamp
+echo 'hello revamp';
+```
+
 #### Using templates
 
 If you want to persist your format string you can add them to ```revamp```'s template directory
