@@ -401,15 +401,16 @@ class DataBuilder(object):
         result = []
         if self._format_string:
             data_frame = self.transform_data(filter_string)
-            if len(data_frame) == 0:
-                return [self._format_string]
-
-            self.apply_codecs(data_frame)
 
             placeholders = self.get_placeholders()
             unset_placeholders = [placeholder for placeholder in placeholders if placeholder not in data_frame.keys()]
             if unset_placeholders:
                 raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
+
+            if len(data_frame) == 0:
+                return [self._format_string]
+
+            self.apply_codecs(data_frame)
 
             for index, row in data_frame.iterrows():
                 # Replace placeholders in format string with values
@@ -649,7 +650,8 @@ def __main__():
                     for placeholder, values in FormatArgumentParser().parse(data_val).items():
                         if not placeholder:
                             if len(unset_placeholders) == 0:
-                                logger.warning("WARNING: Can not assign '{}' to unknown placeholder!".format(values))
+                                logger.warning(
+                                    "WARNING: Can not assign '{}' to unknown placeholder!".format(", ".join(values)))
                                 continue
                             placeholder = unset_placeholders.pop(0)
                         revamp.data.append(placeholder, values)
