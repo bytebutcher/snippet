@@ -56,6 +56,9 @@ $ revamp -t net/scan/nmap-ping rhost:hosts.txt
 nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
 nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
 
+# When no template is specified an interactive template search prompt will be displayed
+$ revamp rhost:hosts.txt
+
 # Transforming strings
 $ revamp -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 revamp
 echo 'hello revamp (cmV2YW1w)';

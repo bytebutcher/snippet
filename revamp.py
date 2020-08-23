@@ -13,6 +13,8 @@ import os
 import sys
 import itertools
 
+from iterfzf import iterfzf
+
 try:
     import pandas as pd
 except:
@@ -21,7 +23,7 @@ except:
     sys.exit(1)
 
 app_name = "revamp"
-app_version = "1.0d"
+app_version = "1.0f"
 
 # Configuration files
 # ===================
@@ -615,9 +617,6 @@ def __main__():
         if arguments.template_name and not sys.stdin.isatty():
             raise Exception("--template can not be used in conjunction with piped input!")
 
-        if arguments.view_template and not arguments.template_name:
-            raise Exception("--view-template must be used in combination with --template!")
-
         if arguments.format_string:
             revamp.format_string = arguments.format_string
 
@@ -661,15 +660,22 @@ def __main__():
 
         revamp.import_environment(Revamp.ImportEnvironmentMode.default)
 
-        if revamp.format_string:
-            for line in revamp.build(arguments.filter):
-                print(line)
-            sys.exit(0)
-
         if arguments.environment:
             print(revamp.list_environment())
-        else:
-            parser.print_help()
+            sys.exit(0)
+
+        if not revamp.format_string:
+            template_name = iterfzf(revamp.list_templates())
+            if not template_name:
+                sys.exit(1)
+
+            format_string = revamp.use_template(template_name)
+            if arguments.view_template:
+                print(format_string)
+                sys.exit(0)
+
+        for line in revamp.build(arguments.filter):
+            print(line)
 
         sys.exit(0)
     except Exception as e:
