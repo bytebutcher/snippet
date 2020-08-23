@@ -52,6 +52,10 @@ ping -c 1 localhost > ping_localhost_20770413000000.log;
 ping -c 1 github.com > ping_github.com_20770413000000.log;
 
 # Using templates and reading arguments from a file
+$ cat <<EOF > input.txt
+localhost
+github.com
+EOF
 $ revamp -t net/scan/nmap-ping rhost:hosts.txt
 nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
 nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
@@ -60,7 +64,7 @@ nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
 $ revamp rhost:hosts.txt
 
 # Transforming strings
-$ revamp -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 revamp
+$ revamp -f "echo 'hello <arg1> (<arg1:b64>)';" revamp
 echo 'hello revamp (cmV2YW1w)';
 ```
 
@@ -171,10 +175,15 @@ echo 'hello revamp';
 #### Using templates
 
 If you want to persist your format string you can add them to ```revamp```'s template directory
-which can be easily accessed using the ```-t | --template``` argument:
+which can be easily accessed using the interactive search prompt or the ```-t | --template``` argument:
 ```
 $ mkdir -p ~/.revamp/templates
 $ echo -n "echo '<arg1> <arg2> - <date_time>'" > ~/.revamp/templates/example
+
+# Show an interactive search prompt
+$ revamp arg1=hello arg2=revamp
+
+# Select template by name
 $ revamp -t example arg1=hello arg2=revamp
 hello revamp - 20200322034102
 ```
@@ -182,17 +191,17 @@ hello revamp - 20200322034102
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
 template names. 
 
-If you want to review a specific template you can use the ```-tV | --template-view``` argument:
+If you want to review a specific template you can use the ```-v | --template-view``` argument:
 ```
-$ revamp -t example -tV
+$ revamp -t example -v
 echo '<arg1> <arg2> - <date_time>'
 ```
 
-To list all available templates you can use the ```-tL | --template-list```
+To list all available templates you can use the ```-l | --template-list```
 parameter:
 
 ```
-$ revamp -tL
+$ revamp -l
 net/enum/enum4linux-basic
 net/scan/nmap-basic
 net/scan/nmap-ping
@@ -230,10 +239,10 @@ web/fuzz/wfuzz-ext
 ### Transforming strings using codecs
 
 ```revamp``` supports simple string transformation. A list of available codecs can be viewed by using the
-```--codec-list | -cL``` argument:
+```--codec-list | -c``` argument:
 
 ```
-$ revamp -cL
+$ revamp -c
 b64
 md5
 safe_filename
@@ -244,24 +253,12 @@ url
 url_plus
 ```
 
-To transform a placeholder use the ```--codec | -c``` argument by specifying the placeholder to transform and the codec
-to use:
+To transform a placeholder use the ```<PLACEHOLDER[:CODEC ...]>``` format:
 ```
-$ revamp -f "<arg>" -c arg:b64 arg="hello revamp"
+$ revamp -f "<arg:b64>" "hello revamp"
 aGVsbG8gcmV2YW1w
-```
-
-To do a subsequent string transformation on the same placeholder just specify another codec:
-```
-$ revamp -f "<arg>" -c arg:b64:md5 arg="hello revamp"
-fa06bfedcbfa6b6d0384baebc644b666
-```
-
-If you require the initial and the transformed value at the same time ```revamp``` allows to store the transformed value
-in a new placeholder:
-```
-$ revamp -f "<arg> - <arg2>" -c arg2:arg:b64:md5 arg="hello revamp"
-hello revamp - fa06bfedcbfa6b6d0384baebc644b666
+$ revamp -f "<arg> <arg:b64:b64>" "hello revamp"
+hello revamp YUdWc2JHOGdjbVYyWVcxdw==
 ```
 
 ### Executing commands

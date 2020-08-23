@@ -23,7 +23,7 @@ except:
     sys.exit(1)
 
 app_name = "revamp"
-app_version = "1.0f"
+app_version = "1.0g"
 
 # Configuration files
 # ===================
@@ -113,6 +113,19 @@ class FormatArgumentParser(object):
         return {"": value}
 
 
+class PlaceholderFormat:
+
+    def __init__(self, format_string: str):
+        # <PLACEHOLDER:CODEC[:CODEC ...]>
+        try:
+            assert(format_string.startswith("<") and format_string.endswith(">"))
+            self.format_string = format_string[1:-1]
+            self.codecs = [item.lower() for item in self.format_string.split(":")]
+            self.name = self.codecs.pop(0)
+        except:
+            raise Exception("Transforming placeholders failed! Invalid format!")
+
+
 class Data(defaultdict):
     """
      Map of placeholders with value lists e.g. { 'PLACEHOLDER-1': ('a','b','c'), 'PLACEHOLDER-2': ('d') }
@@ -179,30 +192,6 @@ class Codec(object):
 
     def run(self, text):
         pass
-
-
-CodecFormat = namedtuple("CodecFormat", "placeholder placeholder_new codecs")
-
-
-class CodecFormatStringParser(object):
-
-    def parse(self, codec_format_string):
-        # PLACEHOLDER[=NEW_PLACEHOLDER]:CODEC[:CODEC ...]
-        placeholder = None
-        placeholder_new = None
-        codecs = None
-        try:
-            if "=" in codec_format_string:
-                new_placeholder, codec_format_string = codec_format_string.split("=")
-            codecs = codec_format_string.split(":")
-            placeholder = codecs.pop(0)
-        except:
-            raise Exception("Transforming placeholders failed! Invalid codec format!")
-
-        if not codecs:
-            raise Exception("Transforming placeholders failed! Invalid codec format!")
-
-        return CodecFormat(placeholder, placeholder_new, codecs)
 
 
 class Config(object):
@@ -329,7 +318,14 @@ class DataBuilder(object):
             # Parse placeholders from format string
             # Remove duplicate placeholders while preserving order
             self._placeholders = list(
-                OrderedDict.fromkeys(placeholder for placeholder in re.findall(r"<(\w+)>", self._format_string)))
+                OrderedDict.fromkeys(
+                    PlaceholderFormat("<" + placeholder_format + ">") \
+                        for placeholder_format in re.findall(r"<(\w+[:\w+]*)>", self._format_string)))
+            for placeholder in self._placeholders:
+                for codec in placeholder.codecs:
+                    if codec not in self.config.codecs:
+                        raise Exception("Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
+
             return list(self._placeholders)
         else:
             return []
@@ -340,23 +336,23 @@ class DataBuilder(object):
         """
         temporary_data = Data()
 
-        placeholders = [placeholder.lower() for placeholder in self.get_placeholders()]
-        for placeholder in self.data.keys():
-            if placeholder in placeholders:
+        placeholder_names = self._get_placeholder_names()
+        for placeholder_name in self.data.keys():
+            if placeholder_name in placeholder_names:
                 # Add to temporary data. Remove duplicates while preserving order
-                temporary_data[placeholder] = OrderedDict.fromkeys(self.data[placeholder])
+                temporary_data[placeholder_name] = OrderedDict.fromkeys(self.data[placeholder_name])
 
         reserved_placeholder_values = self.config.get_reserved_placeholder_values()
         if any(reserved_placeholder in temporary_data.keys() for reserved_placeholder in
                reserved_placeholder_values.keys()):
             raise Exception("{} is/are already defined in your profile!".format(
-                ', '.join(["<" + placeholder + ">" for placeholder in reserved_placeholder_values.keys() if
-                           placeholder in temporary_data])))
+                ', '.join(["<" + placeholder_name + ">" for placeholder_name in reserved_placeholder_values.keys() if
+                           placeholder_name in temporary_data])))
 
-        for placeholder, value in reserved_placeholder_values.items():
-            if placeholder in placeholders:
+        for placeholder_name, value in reserved_placeholder_values.items():
+            if placeholder_name in placeholder_names:
                 # Add to temporary data. Remove duplicates while preserving order
-                temporary_data[placeholder] = OrderedDict.fromkeys(value)
+                temporary_data[placeholder_name] = OrderedDict.fromkeys(value)
 
         # Create matrix from data e.g. (('a','d'), ('b','d'), ('c','d'))
         data_matrix = list(itertools.product(*[temporary_data[key] for key in temporary_data.keys()]))
@@ -379,46 +375,34 @@ class DataBuilder(object):
 
         return data_frame
 
-    def apply_codecs(self, data_frame):
-        for placeholder in data_frame.keys():
-            if placeholder in self.codec_formats.keys():
-                new_values = []
-                for value in data_frame[placeholder]:
-                    new_value = value
-                    for codec in self.codec_formats[placeholder].codecs:
-                        new_value = self.config.codecs[codec].run(new_value)
-                    new_values.append(new_value)
+    def _get_placeholder_names(self):
+        return [placeholder.name for placeholder in self.get_placeholders()]
 
-                placeholder_new = self.codec_formats[placeholder].placeholder_new
-                if placeholder_new:
-                    if placeholder_new in data_frame.keys():
-                        raise Exception("Transforming placeholder {} to {} failed! The placeholder {} is already defined!".format(
-                            placeholder, placeholder_new, placeholder_new
-                        ))
-                    data_frame[placeholder_new] = new_values
-                else:
-                    data_frame[placeholder] = new_values
+    def _apply_codecs(self, row, placeholder):
+        value = row[placeholder.name]
+        for codec in placeholder.codecs:
+            value = self.config.codecs[codec].run(value)
+        return value
 
     def build(self, filter_string=None):
         result = []
         if self._format_string:
             data_frame = self.transform_data(filter_string)
 
-            placeholders = self.get_placeholders()
-            unset_placeholders = [placeholder for placeholder in placeholders if placeholder not in data_frame.keys()]
+            placeholder_names = self._get_placeholder_names()
+            unset_placeholders = [placeholder_name for placeholder_name in placeholder_names if placeholder_name not in data_frame.keys()]
             if unset_placeholders:
                 raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
             if len(data_frame) == 0:
                 return [self._format_string]
 
-            self.apply_codecs(data_frame)
-
             for index, row in data_frame.iterrows():
                 # Replace placeholders in format string with values
                 output_line = self._format_string
-                for placeholder in placeholders:
-                    output_line = output_line.replace("<" + placeholder + ">", row[placeholder.lower()])
+                for placeholder in self.get_placeholders():
+                    value = self._apply_codecs(row, placeholder)
+                    output_line = output_line.replace("<" + placeholder.format_string + ">", value)
                 result.append(output_line)
 
         return result
@@ -466,14 +450,14 @@ class Revamp(object):
         return temporary_data.to_data_frame()
 
     def list_placeholders(self):
-        return DataBuilder(self.format_string, self.data, self.codec_formats, self.config).get_placeholders()
+        return [placeholder.name for placeholder in DataBuilder(self.format_string, self.data, self.codec_formats, self.config).get_placeholders()]
 
     def list_reserved_placeholders(self):
         return self.config.get_reserved_placeholder_names()
 
     def list_unset_placeholders(self):
         unset_placeholders = []
-        for placeholder in [p.lower() for p in self.list_placeholders()]:
+        for placeholder in self.list_placeholders():
             if placeholder not in self.data and placeholder not in self.list_reserved_placeholders():
                 unset_placeholders.append(placeholder)
         return unset_placeholders
@@ -484,7 +468,7 @@ class Revamp(object):
         self.data.import_from_file(import_file_path, delimiter)
 
     def import_environment(self, mode=ImportEnvironmentMode.default):
-        placeholders = [placeholder.lower() for placeholder in self.list_placeholders()]
+        placeholders = self.list_placeholders()
         reserved_placeholders = self.config.get_reserved_placeholder_values().keys()
 
         def _import_environment(placeholder, data):
@@ -495,13 +479,13 @@ class Revamp(object):
             for placeholder in placeholders:
                 data = os.environ.get(placeholder)
                 if data:
-                    if Revamp.ImportEnvironmentMode.default == mode:
+                    if mode == Revamp.ImportEnvironmentMode.default:
                         # Only set environment data when not already defined
                         if placeholder not in self.data:
                             _import_environment(placeholder, data)
-                    elif Revamp.ImportEnvironmentMode.append == mode:
+                    elif mode == Revamp.ImportEnvironmentMode.append:
                         _import_environment(placeholder, data)
-                    elif Revamp.ImportEnvironmentMode.replace == mode:
+                    elif mode == Revamp.ImportEnvironmentMode.replace:
                         if placeholder not in reserved_placeholders:
                             self.data[placeholder] = []
                             _import_environment(placeholder, data)
@@ -538,6 +522,9 @@ def __main__():
         # Using templates and reading arguments from a file
         $ revamp -t net/scan/nmap-ping rhost:hosts.txt
         
+        # When no template is specified an interactive template search prompt is displayed
+        $ revamp rhost:hosts.txt
+        
         # Transforming strings
         $ revamp -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 revamp
         """
@@ -559,18 +546,14 @@ def __main__():
                         dest='template_name',
                         help="The template to use as format string.") \
         .completer = argparse_template_completer
-    parser.add_argument('-tV', '--template-view', action="store_true",
+    parser.add_argument('-v', '--template-view', action="store_true",
                         dest='view_template',
                         help="Views the template instead of using it as generator. Can only be used in combination with "
                              "the --template argument.")
-    parser.add_argument('-tL', '--templates-list', action="store_true",
+    parser.add_argument('-l', '--templates-list', action="store_true",
                         dest='list_templates',
                         help="Lists all available templates.")
-    parser.add_argument('-c', '--codec', action="append", metavar="[NEW_PLACEHOLDER=]PLACEHOLDER:CODEC[:CODEC ...]",
-                        dest='codec_format_strings',
-                        help="Transforms the value assigned to the placeholder using the specified codecs. The result does "
-                             "either replace the initial value or is accessible under the new placeholder name.")
-    parser.add_argument('-cL', '--codec-list', action="store_true",
+    parser.add_argument('-c', '--codec-list', action="store_true",
                         dest='codec_list',
                         help="Lists all available codecs.")
     parser.add_argument('--filter', action="store", metavar="STRING", dest='filter',
@@ -628,16 +611,6 @@ def __main__():
 
         if not sys.stdin.isatty():
             revamp.format_string = sys.stdin.readline().rstrip()
-
-        if arguments.codec_format_strings:
-            codec_formats = {}
-            for codec_format_string in arguments.codec_format_strings:
-                codec_format = CodecFormatStringParser().parse(codec_format_string)
-                for codec in codec_format.codecs:
-                    if codec not in revamp.list_codecs():
-                        raise Exception("Unknown codec {}!".format(codec))
-                codec_formats[codec_format.placeholder] = codec_format
-            revamp.codec_formats = codec_formats
 
         if not revamp.format_string:
             revamp.format_string = os.environ.get("FORMAT_STRING")
