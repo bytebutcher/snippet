@@ -25,7 +25,7 @@ except:
     sys.exit(1)
 
 app_name = "snippet"
-app_version = "1.0j"
+app_version = "1.0k"
 
 # Configuration files
 # ===================
@@ -260,6 +260,15 @@ class Config(object):
 
         return codecs
 
+    def _get_template_file(self, format_template_name):
+        if not format_template_name:
+            return None
+        for format_template_path in self.format_template_paths:
+            format_template_file = os.path.join(format_template_path, format_template_name)
+            if os.path.exists(format_template_file):
+                return format_template_file
+        return None
+
     def _get_editor(self):
         return self.profile.editor
 
@@ -295,15 +304,19 @@ class Config(object):
         return sorted(list(set(format_template_files)))
 
     def get_format_template(self, format_template_name):
-        for format_template_path in self.format_template_paths:
-            format_template_file = os.path.join(format_template_path, format_template_name)
-            if os.path.exists(format_template_file):
-                try:
-                    with open(format_template_file) as f:
-                        return os.sep.join(f.read().splitlines())
-                except:
-                    raise Exception("Loading '{}' failed! Invalid template format!".format(format_template_name))
-        raise Exception("Loading '{}' failed! Template not found!".format(format_template_name))
+        format_template_file = self._get_template_file(format_template_name)
+        if not format_template_file:
+            format_template_name = iterfzf(self.get_format_template_names(), query=format_template_name)
+
+        format_template_file = self._get_template_file(format_template_name)
+        if not format_template_file:
+            raise Exception("Loading {} failed! Template not found!".format(format_template_name or "template"))
+
+        try:
+            with open(format_template_file) as f:
+                return os.sep.join(f.read().splitlines())
+        except:
+            raise Exception("Loading {} failed! Invalid template format!".format(format_template_name or "template"))
 
     editor = property(_get_editor)
 
