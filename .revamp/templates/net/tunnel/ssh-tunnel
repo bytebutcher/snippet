@@ -1,0 +1,1 @@
+ssh -L <lhost>:<lport>:<rhost>:<rport> <username>@<rhost>
