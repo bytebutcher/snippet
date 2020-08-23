@@ -42,9 +42,17 @@ ln -s /path/to/snippet.py /usr/bin/snippet
 
 The following overview shows various examples of how ```snippet``` can be used:
 ```
-# A rather simple string format example using snippet
-$ snippet -f "hello <arg1>" snippet
-hello snippet
+# Add or edit a snippet (will open vim)
+$ snippet -e example
+hello, <arg1>!
+
+# Use the snippet with a custom argument
+$ snippet -t example world
+hello, world!
+
+# Using on-the-fly transformation 
+$ snippet -f "hello, <arg1>!" world
+hello, world!
 
 # Assigning multiple values and making use of presets
 $ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
@@ -60,7 +68,7 @@ $ snippet -t net/scan/nmap-ping rhost:hosts.txt
 nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
 nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
 
-# When no template is specified an interactive template search prompt will be displayed
+# When no template is specified an interactive search prompt will be displayed
 $ snippet rhost:hosts.txt
 
 # Transforming strings

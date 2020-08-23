@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import shlex
+import shutil
+import subprocess
 import traceback
 from collections import defaultdict, OrderedDict, namedtuple
 from enum import Enum
@@ -23,7 +25,7 @@ except:
     sys.exit(1)
 
 app_name = "snippet"
-app_version = "1.0g"
+app_version = "1.0i"
 
 # Configuration files
 # ===================
@@ -258,6 +260,9 @@ class Config(object):
 
         return codecs
 
+    def _get_editor(self):
+        return self.profile.editor
+
     def get_reserved_placeholders(self):
         if self.profile:
             return self.profile.placeholder_values
@@ -299,6 +304,8 @@ class Config(object):
                 except:
                     raise Exception("Loading '{}' failed! Invalid template format!".format(format_template_name))
         raise Exception("Loading '{}' failed! Template not found!".format(format_template_name))
+
+    editor = property(_get_editor)
 
 
 class DataBuilder(object):
@@ -422,6 +429,27 @@ class Snippet(object):
     def __init__(self, config: Config):
         self.config = config
 
+    def create_or_edit_template(self, template_name):
+        home_template_path = os.path.join(home_config_path, "templates")
+        home_template_file = os.path.join(home_template_path, template_name)
+        if os.path.isfile(home_template_file):
+            # Edit existing file in home path
+            subprocess.call((self.config.editor, home_template_file))
+            return
+
+        try:
+            app_template_path = os.path.join(app_config_path, "templates")
+            app_template_file = os.path.join(app_template_path, template_name)
+            home_template_dir = os.path.dirname(home_template_file)
+            os.makedirs(home_template_dir, exist_ok=True)
+            if os.path.isfile(app_template_file):
+                # If template exists in app path, do not edit here
+                # Instead make copy to home path and edit this file
+                shutil.copyfile(app_template_file, home_template_file)
+            subprocess.call((self.config.editor, home_template_file))
+        except:
+            raise Exception("Creating '{}' failed!".format(template_name))
+
     def use_template(self, template_name):
         self.format_string = self.config.get_format_template(template_name)
         return self.format_string
@@ -534,6 +562,10 @@ def __main__():
                              'be replaced with the value(s). Otherwise the specified placeholder will be replaced with '
                              'the value or the content of the file. A list of values can be assigned by explicitly '
                              'declaring the placeholder (e.g. "ARG1=val1" "ARG1=val2").')
+    parser.add_argument('-e', '--edit', action="store", metavar="NAME",
+                        dest='edit',
+                        help="Edit (or create) a snippet with the specified name.") \
+        .completer = argparse_template_completer
     parser.add_argument('-f', '--format-string', action="store", metavar="FORMAT_STRING",
                         dest='format_string',
                         help="The format of the data to generate. "
@@ -559,7 +591,7 @@ def __main__():
     parser.add_argument('--filter', action="store", metavar="STRING", dest='filter',
                         help="The filter to include/exclude results "
                              "(e.g. --filter 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
-    parser.add_argument('-e', '--environment', action="store_true",
+    parser.add_argument('--env', '--environment', action="store_true",
                         dest='environment',
                         help="Shows all environment variables.")
     parser.add_argument('-d', '--debug', action="store_true",
@@ -572,6 +604,10 @@ def __main__():
     config.logger.setLevel(logging.DEBUG if arguments.debug else logging.INFO)
 
     try:
+        if arguments.edit:
+            snippet.create_or_edit_template(arguments.edit)
+            sys.exit(0)
+
         if arguments.codec_list and arguments.list_templates:
             raise Exception("--codec-list can not be used in combination with --template-list!")
 
