@@ -1,9 +1,9 @@
-from revamp import Codec
+from snippet import Codec
 
 
-class Sha256(Codec):
+class Md5(Codec):
     """
-    Hashes a string using SHA256.
+    Hashes a string using MD5.
 
     Example:
 
@@ -13,8 +13,7 @@ class Sha256(Codec):
             0123456789
 
         Output:
-            0a4035197aa3b94d8ee2ff7d5b286636 \\
-            f6264f6c96ffccf3c4b777a8fb9be674
+            4384c8873a173210f11c30d6ae54baec
     """
 
     def __init__(self):
@@ -22,4 +21,4 @@ class Sha256(Codec):
 
     def run(self, input):
         import hashlib
-        return hashlib.sha256(input.encode('utf-8', errors='surrogateescape')).hexdigest()
+        return hashlib.md5(input.encode('utf-8', errors='surrogateescape')).hexdigest()

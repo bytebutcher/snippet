@@ -22,15 +22,15 @@ except:
     sys.stderr.write("Please install requirements using 'pip3 install -r requirements.txt" + os.linesep)
     sys.exit(1)
 
-app_name = "revamp"
+app_name = "snippet"
 app_version = "1.0g"
 
 # Configuration files
 # ===================
-# Configuration files can be placed into a folder named ".revamp". Either inside the application- or
+# Configuration files can be placed into a folder named ".snippet". Either inside the application- or
 # inside the home-directory.
-app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".revamp")
-home_config_path = os.path.join(str(Path.home()), ".revamp")
+app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".snippet")
+home_config_path = os.path.join(str(Path.home()), ".snippet")
 
 
 class FormatArgumentParser(object):
@@ -220,7 +220,7 @@ class Config(object):
                     # Since the path may contain special characters which can not be processed by the __import__
                     # function we temporary add the path in which the profile.py is located to the PATH.
                     sys.path.append(profile_path)
-                    profile = __import__("revamp_profile").Profile()
+                    profile = __import__("snippet_profile").Profile()
                     sys.path.pop()
                     return profile
                 except:
@@ -408,7 +408,7 @@ class DataBuilder(object):
         return result
 
 
-class Revamp(object):
+class Snippet(object):
     class ImportEnvironmentMode(Enum):
         default = 1
         append = 2
@@ -475,17 +475,17 @@ class Revamp(object):
             if data and placeholder not in reserved_placeholders:
                 self.data.append(placeholder, data)
 
-        if mode != Revamp.ImportEnvironmentMode.ignore:
+        if mode != Snippet.ImportEnvironmentMode.ignore:
             for placeholder in placeholders:
                 data = os.environ.get(placeholder)
                 if data:
-                    if mode == Revamp.ImportEnvironmentMode.default:
+                    if mode == Snippet.ImportEnvironmentMode.default:
                         # Only set environment data when not already defined
                         if placeholder not in self.data:
                             _import_environment(placeholder, data)
-                    elif mode == Revamp.ImportEnvironmentMode.append:
+                    elif mode == Snippet.ImportEnvironmentMode.append:
                         _import_environment(placeholder, data)
-                    elif mode == Revamp.ImportEnvironmentMode.replace:
+                    elif mode == Snippet.ImportEnvironmentMode.replace:
                         if placeholder not in reserved_placeholders:
                             self.data[placeholder] = []
                             _import_environment(placeholder, data)
@@ -497,13 +497,13 @@ class Revamp(object):
 def __main__():
     config = Config(app_name, [home_config_path, app_config_path])
     logger = config.logger
-    revamp = Revamp(config)
+    snippet = Snippet(config)
 
     def argparse_template_completer(prefix, parsed_args, **kwargs):
         return config.get_format_template_names()
 
     parser = argparse.ArgumentParser(
-        description='revamp',
+        description='snippet',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
     Placeholder presets:
@@ -513,20 +513,20 @@ def __main__():
     
     Examples:
     
-        # A rather simple string format example using revamp
-        $ revamp -f "hello <arg1>" revamp
+        # A rather simple string format example using snippet
+        $ snippet -f "hello <arg1>" snippet
         
         # Assigning multiple values and making use of presets
-        $ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
+        $ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
         
         # Using templates and reading arguments from a file
-        $ revamp -t net/scan/nmap-ping rhost:hosts.txt
+        $ snippet -t net/scan/nmap-ping rhost:hosts.txt
         
         # When no template is specified an interactive template search prompt is displayed
-        $ revamp rhost:hosts.txt
+        $ snippet rhost:hosts.txt
         
         # Transforming strings
-        $ revamp -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 revamp
+        $ snippet -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 snippet
         """
     )
     parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',
@@ -576,7 +576,7 @@ def __main__():
             raise Exception("--codec-list can not be used in combination with --template-list!")
 
         if arguments.list_templates:
-            template_names = revamp.list_templates()
+            template_names = snippet.list_templates()
             if not template_names:
                 logger.warning("WARNING: No templates found!")
             for template_name in template_names:
@@ -584,7 +584,7 @@ def __main__():
             sys.exit(0)
 
         if arguments.codec_list:
-            codec_names = revamp.list_codecs()
+            codec_names = snippet.list_codecs()
             if not codec_names:
                 logger.warning("WARNING: No codecs found!")
             for codec_name in codec_names:
@@ -601,25 +601,25 @@ def __main__():
             raise Exception("--template can not be used in conjunction with piped input!")
 
         if arguments.format_string:
-            revamp.format_string = arguments.format_string
+            snippet.format_string = arguments.format_string
 
         if arguments.template_name:
-            format_string = revamp.use_template(arguments.template_name)
+            format_string = snippet.use_template(arguments.template_name)
             if arguments.view_template:
                 print(format_string)
                 sys.exit(0)
 
         if not sys.stdin.isatty():
-            revamp.format_string = sys.stdin.readline().rstrip()
+            snippet.format_string = sys.stdin.readline().rstrip()
 
-        if not revamp.format_string:
-            revamp.format_string = os.environ.get("FORMAT_STRING")
+        if not snippet.format_string:
+            snippet.format_string = os.environ.get("FORMAT_STRING")
 
         if arguments.import_file:
-            revamp.import_data_file(arguments.import_file)
+            snippet.import_data_file(arguments.import_file)
 
         if arguments.data_values:
-            unset_placeholders = revamp.list_unset_placeholders()
+            unset_placeholders = snippet.list_unset_placeholders()
             for data_val in arguments.data_values:
                 if data_val:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
                     for placeholder, values in FormatArgumentParser().parse(data_val).items():
@@ -629,25 +629,25 @@ def __main__():
                                     "WARNING: Can not assign '{}' to unknown placeholder!".format(", ".join(values)))
                                 continue
                             placeholder = unset_placeholders.pop(0)
-                        revamp.data.append(placeholder, values)
+                        snippet.data.append(placeholder, values)
 
-        revamp.import_environment(Revamp.ImportEnvironmentMode.default)
+        snippet.import_environment(Snippet.ImportEnvironmentMode.default)
 
         if arguments.environment:
-            print(revamp.list_environment())
+            print(snippet.list_environment())
             sys.exit(0)
 
-        if not revamp.format_string:
-            template_name = iterfzf(revamp.list_templates())
+        if not snippet.format_string:
+            template_name = iterfzf(snippet.list_templates())
             if not template_name:
                 sys.exit(1)
 
-            format_string = revamp.use_template(template_name)
+            format_string = snippet.use_template(template_name)
             if arguments.view_template:
                 print(format_string)
                 sys.exit(0)
 
-        for line in revamp.build(arguments.filter):
+        for line in snippet.build(arguments.filter):
             print(line)
 
         sys.exit(0)

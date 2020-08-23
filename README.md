@@ -1,25 +1,25 @@
-# revamp
+# snippet
 
-```revamp``` is an advanced highly customizable template based string formatting tool which
+```snippet``` is an advanced highly customizable template based string formatting tool which
 has the ability to do complex variable substitutions and string transformation.
 
 ## Setup
 
 ```
-git clone https://github.com/bytebutcher/revamp
-cd revamp
+git clone https://github.com/bytebutcher/snippet
+cd snippet
 python3 -m venv venv
 ./venv/bin/python3 install -r requirements.txt
-sudo ln -s $PWD/revamp /usr/bin/revamp
+sudo ln -s $PWD/snippet /usr/bin/snippet
 ```
 
 To enable bash-completion you might add following line to your .bashrc:
 ```bash
-eval "$(register-python-argcomplete revamp)"
+eval "$(register-python-argcomplete snippet)"
 ```
-Make sure to add the ```revamp``` directory to your ```PATH``` or link it accordingly:
+Make sure to add the ```snippet``` directory to your ```PATH``` or link it accordingly:
 ```
-ln -s /path/to/revamp.py /usr/bin/revamp
+ln -s /path/to/snippet.py /usr/bin/snippet
 ```
 
 ## Usage
@@ -40,14 +40,14 @@ ln -s /path/to/revamp.py /usr/bin/revamp
 
 ### Overview
 
-The following overview shows various examples of how ```revamp``` can be used:
+The following overview shows various examples of how ```snippet``` can be used:
 ```
-# A rather simple string format example using revamp
-$ revamp -f "hello <arg1>" revamp
-hello revamp
+# A rather simple string format example using snippet
+$ snippet -f "hello <arg1>" snippet
+hello snippet
 
 # Assigning multiple values and making use of presets
-$ revamp -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
+$ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
 ping -c 1 localhost > ping_localhost_20770413000000.log;
 ping -c 1 github.com > ping_github.com_20770413000000.log;
 
@@ -56,16 +56,16 @@ $ cat <<EOF > input.txt
 localhost
 github.com
 EOF
-$ revamp -t net/scan/nmap-ping rhost:hosts.txt
+$ snippet -t net/scan/nmap-ping rhost:hosts.txt
 nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
 nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
 
 # When no template is specified an interactive template search prompt will be displayed
-$ revamp rhost:hosts.txt
+$ snippet rhost:hosts.txt
 
 # Transforming strings
-$ revamp -f "echo 'hello <arg1> (<arg1:b64>)';" revamp
-echo 'hello revamp (cmV2YW1w)';
+$ snippet -f "echo 'hello <arg1> (<arg1:b64>)';" snippet
+echo 'hello snippet (cmV2YW1w)';
 ```
 
 ### Assigning data to placeholders
@@ -75,51 +75,51 @@ To assign data to a placeholder you have several options:
 The most straight forward way of assigning data to a placeholder is to use positional arguments:
 
 ```
-$ revamp -f "echo 'hello <arg1>';" revamp
-echo 'hello revamp';
+$ snippet -f "echo 'hello <arg1>';" snippet
+echo 'hello snippet';
 ```
 
 To assign multiple values to a specific placeholder you need to explicitly declare the placeholder to which the
 value should be assigned to:
 ```
-$ revamp -f "echo 'hello <arg1>';" arg1=revamp world
-echo 'hello revamp';
+$ snippet -f "echo 'hello <arg1>';" arg1=snippet world
+echo 'hello snippet';
 echo 'hello world';
 ```
 
 In addition values can be directly imported from a file:
 ```
 $ cat <<EOF > input.txt
-revamp
+snippet
 world
 EOF
-$ revamp -f "echo 'hello <arg1>';" arg1:input.txt
+$ snippet -f "echo 'hello <arg1>';" arg1:input.txt
 echo 'hello world';
-echo 'hello revamp';
+echo 'hello snippet';
 ```
 
 #### Using environment variables
 
-```revamp``` evaluates environment variables and assigns data to any unset 
-placeholder. To avoid running into conflict with other environment variables ```revamp``` only evaluates 
+```snippet``` evaluates environment variables and assigns data to any unset 
+placeholder. To avoid running into conflict with other environment variables ```snippet``` only evaluates 
 lower-case variable names:
 ```
-$ export arg1=revamp
-$ revamp -f "echo 'hello <arg1>';"
-echo 'hello revamp';
+$ export arg1=snippet
+$ snippet -f "echo 'hello <arg1>';"
+echo 'hello snippet';
 ```
 To assign multiple values to a placeholder following syntax must be used:
 ```
-$ export arg1="\('revamp' 'world'\)"
-$ revamp -f "echo 'hello <arg1>';"
-echo 'hello revamp';
+$ export arg1="\('snippet' 'world'\)"
+$ snippet -f "echo 'hello <arg1>';"
+echo 'hello snippet';
 echo 'hello world';
 ```
 
 Note that positional arguments may override the evaluation of environment variables:
 ```
-$ export arg1=revamp
-$ revamp -f "echo 'hello <arg1>';" world
+$ export arg1=snippet
+$ snippet -f "echo 'hello <arg1>';" world
 echo 'hello world';
 ```
  
@@ -127,27 +127,27 @@ echo 'hello world';
 
 Data can also be imported from a csv-file using the ```-i | --import``` argument.
 Note, that values must be separated by a tab character
- (which can be changed in ```.revamp/revamp_profile.py```):
+ (which can be changed in ```.snippet/snippet_profile.py```):
 
 ```
 $ cat <<EOF > input.csv
 arg1    arg2
-hello   revamp
+hello   snippet
         world
 EOF
-$ revamp -f "echo '<arg1> <arg2>';" -i input.csv 
+$ snippet -f "echo '<arg1> <arg2>';" -i input.csv 
 echo 'hello world';
-echo 'hello revamp';
+echo 'hello snippet';
 ```
 
 #### Using presets
 
-```revamp``` ships with a customizable set of preset placeholders which can be 
+```snippet``` ships with a customizable set of preset placeholders which can be 
 directly used in your format string 
-(see ```.revamp/revamp_profile.py``` for more information). Preset placeholders may have constant  
+(see ```.snippet/snippet_profile.py``` for more information). Preset placeholders may have constant  
 but also dynamically generated values assigned to them:
 ```
-$ revamp -f "echo '<date_time>';" 
+$ snippet -f "echo '<date_time>';" 
 echo '20200322034102';
 ```
 
@@ -160,32 +160,32 @@ To use string formats you have several options:
 If you read the previous section you already know the ```-f | --format-string``` argument:
 
 ```
-$ revamp -f "echo 'hello revamp';"
-echo 'hello revamp';
+$ snippet -f "echo 'hello snippet';"
+echo 'hello snippet';
 ```
 
 #### Using input from a pipe
 
 Another option to set the string format is by using a pipe:
 ```
-$ echo "echo 'hello revamp'" | revamp
-echo 'hello revamp';
+$ echo "echo 'hello snippet'" | snippet
+echo 'hello snippet';
 ```
 
 #### Using templates
 
-If you want to persist your format string you can add them to ```revamp```'s template directory
+If you want to persist your format string you can add them to ```snippet```'s template directory
 which can be easily accessed using the interactive search prompt or the ```-t | --template``` argument:
 ```
-$ mkdir -p ~/.revamp/templates
-$ echo -n "echo '<arg1> <arg2> - <date_time>'" > ~/.revamp/templates/example
+$ mkdir -p ~/.snippet/templates
+$ echo -n "echo '<arg1> <arg2> - <date_time>'" > ~/.snippet/templates/example
 
 # Show an interactive search prompt
-$ revamp arg1=hello arg2=revamp
+$ snippet arg1=hello arg2=snippet
 
 # Select template by name
-$ revamp -t example arg1=hello arg2=revamp
-hello revamp - 20200322034102
+$ snippet -t example arg1=hello arg2=snippet
+hello snippet - 20200322034102
 ```
 
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
@@ -193,7 +193,7 @@ template names.
 
 If you want to review a specific template you can use the ```-v | --template-view``` argument:
 ```
-$ revamp -t example -v
+$ snippet -t example -v
 echo '<arg1> <arg2> - <date_time>'
 ```
 
@@ -201,7 +201,7 @@ To list all available templates you can use the ```-l | --template-list```
 parameter:
 
 ```
-$ revamp -l
+$ snippet -l
 net/enum/enum4linux-basic
 net/scan/nmap-basic
 net/scan/nmap-ping
@@ -238,11 +238,11 @@ web/fuzz/wfuzz-ext
 
 ### Transforming strings using codecs
 
-```revamp``` supports simple string transformation. A list of available codecs can be viewed by using the
+```snippet``` supports simple string transformation. A list of available codecs can be viewed by using the
 ```--codec-list | -c``` argument:
 
 ```
-$ revamp -c
+$ snippet -c
 b64
 md5
 safe_filename
@@ -255,26 +255,26 @@ url_plus
 
 To transform a placeholder use the ```<PLACEHOLDER[:CODEC ...]>``` format:
 ```
-$ revamp -f "<arg:b64>" "hello revamp"
+$ snippet -f "<arg:b64>" "hello snippet"
 aGVsbG8gcmV2YW1w
-$ revamp -f "<arg> <arg:b64:b64>" "hello revamp"
-hello revamp YUdWc2JHOGdjbVYyWVcxdw==
+$ snippet -f "<arg> <arg:b64:b64>" "hello snippet"
+hello snippet YUdWc2JHOGdjbVYyWVcxdw==
 ```
 
 ### Executing commands
 
-```revamp``` can be used to easily execute alternating commands in sequence:
+```snippet``` can be used to easily execute alternating commands in sequence:
 ```
-$ revamp -f "echo 'hello <arg1>';" arg1=revamp world | bash
+$ snippet -f "echo 'hello <arg1>';" arg1=snippet world | bash
 hello world
-hello revamp
+hello snippet
 ```
 
 Using ```xargs``` the resulting commands can also be executed in parallel:
 ```
-revamp -f "echo 'hello <arg1>';" arg1=revamp arg1=world | xargs --max-procs=4 -I CMD bash -c CMD
+snippet -f "echo 'hello <arg1>';" arg1=snippet arg1=world | xargs --max-procs=4 -I CMD bash -c CMD
 hello world
-hello revamp
+hello snippet
 ```
 
 ## See also
@@ -284,8 +284,8 @@ To make the most out of this tool you might also consider to look into the follo
 * [interactive](https://github.com/bytebutcher/interactive) - make arbitrary commands interactive
 * [bgl](https://github.com/bytebutcher/bgl) - manage global bash environment variables
 
-Here is a rather advanced example of how ```interactive```, ```leval``` and ```revamp``` play together:
+Here is a rather advanced example of how ```interactive```, ```leval``` and ```snippet``` play together:
 ```
-# Make revamp interactive and evaluate output using leval before executing it
-$ interactive -p "leval --print-stdout" revamp -f "[format]" [args]
+# Make snippet interactive and evaluate output using leval before executing it
+$ interactive -p "leval --print-stdout" snippet -f "[format]" [args]
 ```
