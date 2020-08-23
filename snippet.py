@@ -3,7 +3,7 @@ import shlex
 import shutil
 import subprocess
 import traceback
-from collections import defaultdict, OrderedDict, namedtuple
+from collections import defaultdict, OrderedDict
 from enum import Enum
 
 import argcomplete, argparse
@@ -25,7 +25,7 @@ except:
     sys.exit(1)
 
 app_name = "snippet"
-app_version = "1.0i"
+app_version = "1.0j"
 
 # Configuration files
 # ===================
@@ -651,6 +651,16 @@ def __main__():
         if not snippet.format_string:
             snippet.format_string = os.environ.get("FORMAT_STRING")
 
+        if not snippet.format_string:
+            template_name = iterfzf(snippet.list_templates())
+            if not template_name:
+                sys.exit(1)
+
+            format_string = snippet.use_template(template_name)
+            if arguments.view_template:
+                print(format_string)
+                sys.exit(0)
+
         if arguments.import_file:
             snippet.import_data_file(arguments.import_file)
 
@@ -672,16 +682,6 @@ def __main__():
         if arguments.environment:
             print(snippet.list_environment())
             sys.exit(0)
-
-        if not snippet.format_string:
-            template_name = iterfzf(snippet.list_templates())
-            if not template_name:
-                sys.exit(1)
-
-            format_string = snippet.use_template(template_name)
-            if arguments.view_template:
-                print(format_string)
-                sys.exit(0)
 
         for line in snippet.build(arguments.filter):
             print(line)

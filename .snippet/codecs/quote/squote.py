@@ -1,9 +1,9 @@
 from snippet import Codec
 
 
-class DQuote(Codec):
+class Squote(Codec):
     """
-    Surrounds a string with double quotes.
+    Surrounds a string with single quotes.
 
     Example:
 
@@ -11,11 +11,11 @@ class DQuote(Codec):
             abcdefghijklmnopqrstuvwxyz
 
         Output:
-            "abcdefghijklmnopqrstuvwxyz"
+            'abcdefghijklmnopqrstuvwxyz'
     """
 
     def __init__(self):
         super().__init__(author="bytebutcher", dependencies=[])
 
     def run(self, input):
-        return '"{}"'.format(input)
+        return "'{}'".format(input)

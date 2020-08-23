@@ -1,1 +1,1 @@
-tar -xzvf '<file>'
+tar -czvf <archive> <file>

@@ -1,7 +1,6 @@
 # snippet
 
-```snippet``` is an advanced highly customizable template based string formatting tool which
-has the ability to do complex variable substitutions and string transformation.
+```snippet``` allows you to create, view and use snippets on the command-line.
 
 ## Setup
 
