@@ -454,7 +454,7 @@ class Revamp(object):
         else:
             return sorted(self.config.codecs.keys())
 
-    def list_options(self, filter_string=None):
+    def list_environment(self, filter_string=None):
         temporary_data = Data()
         for placeholder in self.data.keys():
             temporary_data[placeholder] = self.data[placeholder]
@@ -574,6 +574,9 @@ def __main__():
     parser.add_argument('--filter', action="store", metavar="STRING", dest='filter',
                         help="The filter to include/exclude results "
                              "(e.g. --filter 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
+    parser.add_argument('-e', '--environment', action="store_true",
+                        dest='environment',
+                        help="Shows all environment variables.")
     parser.add_argument('-d', '--debug', action="store_true",
                         dest='debug',
                         help="Activates the debug mode.")
@@ -661,8 +664,14 @@ def __main__():
         if revamp.format_string:
             for line in revamp.build(arguments.filter):
                 print(line)
+            sys.exit(0)
+
+        if arguments.environment:
+            print(revamp.list_environment())
         else:
-            print(revamp.list_options())
+            parser.print_help()
+
+        sys.exit(0)
     except Exception as e:
         logger.error("ERROR: {}".format(e))
         if arguments.debug:
