@@ -572,7 +572,7 @@ class Snippet(object):
 
         if mode != Snippet.ImportEnvironmentMode.ignore:
             for placeholder in placeholders:
-                data = os.environ.get(placeholder)
+                data = os.environ.get(placeholder) or os.environ.get(placeholder.upper())
                 if data:
                     if mode == Snippet.ImportEnvironmentMode.default:
                         # Only set environment data when not already defined
