@@ -572,7 +572,11 @@ class Snippet(object):
 
         if mode != Snippet.ImportEnvironmentMode.ignore:
             for placeholder in placeholders:
-                data = os.environ.get(placeholder) or os.environ.get(placeholder.upper())
+                # Do not load upper case environment variables to prevent users from getting into the habit of
+                # defining upper case environment variables and messing up their environment.
+                # In addition loading upper case environment variables may result in loading unwanted/pre-defined
+                # values.
+                data = os.environ.get(placeholder) # or os.environ.get(placeholder.upper())
                 if data:
                     if mode == Snippet.ImportEnvironmentMode.default:
                         # Only set environment data when not already defined
