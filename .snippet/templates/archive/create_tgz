@@ -1,1 +1,1 @@
-tar -czvf <archive> <file>
+tar -czvf <archive:squote> <file:squote...>

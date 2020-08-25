@@ -2,6 +2,24 @@
 
 ```snippet``` allows you to create, view and use snippets on the command-line.
 
+## Example
+
+```
+# To view a snippet:
+$ snippet -t archive/extract_tar -v
+tar -xvf <archive>
+
+# To get the prefilled snippet:
+$ snippet -t archive/extract_tar '/path/to/foo.tar'
+tar -xvf /path/to/foo.tar
+
+# To add a new snippet:
+$ snippet -e archive/extract_tgz -f 'tar -xzvf <archive>'
+
+# To interactively search snippets which include the term "extract":
+$ snippet -t extract -v
+```
+
 ## Setup
 
 ```
@@ -57,6 +75,10 @@ hello, world!
 $ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
 ping -c 1 localhost > ping_localhost_20770413000000.log;
 ping -c 1 github.com > ping_github.com_20770413000000.log;
+
+# Making use of repeatable placeholders
+$ snippet -f "tar -czvf <archive> <file...>" archive.tgz file=file1 file2
+tar -czvf archive.tgz file1 file2
 
 # Using templates and reading arguments from a file
 $ cat <<EOF > input.txt

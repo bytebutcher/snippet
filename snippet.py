@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import copy
 import shlex
 import shutil
 import subprocess
@@ -25,7 +26,7 @@ except:
     sys.exit(1)
 
 app_name = "snippet"
-app_version = "1.0k"
+app_version = "1.0l"
 
 # Configuration files
 # ===================
@@ -48,7 +49,7 @@ class FormatArgumentParser(object):
 
     def __reformat_arguments(self, format_arguments: str) -> list:
         """
-        Reformats format arguments which were passed as single string but contain multiple placeholders with values
+        Reformat format arguments which were passed as single string but contain multiple placeholders with values
         while missing the necessary quotes to parse them correctly with shlex.
         :param format_arguments: the format arguments (e.g. "placeholder1=a b c placeholder2=d e f")
         :return: a reformatted list of format arguments (e.g. ["placeholder1=a b c", "placeholder2=d e f"])
@@ -115,17 +116,44 @@ class FormatArgumentParser(object):
         return {"": value}
 
 
+class FormatStringParser:
+
+    def __init__(self, format_string):
+        self._format_string = format_string
+
+    def get_placeholders(self):
+        return list(
+            OrderedDict.fromkeys(
+                PlaceholderFormat("<" + placeholder_format + ">") \
+                    for placeholder_format in re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?)>", self._format_string)))
+
+
 class PlaceholderFormat:
+    """
+    The specification of the placeholder format.
+
+    A placeholder is surrounded by '<' and '>'.
+
+    In its simplest form it only contains the name of the placeholder e.g. <PLACEHOLDER>.
+    It may also contain a number of codecs to apply e.g. <PLACEHOLDER:CODEC>, <PLACEHOLDER:CODEC:CODEC>, ...
+    To mark a placeholder to be repeatable three dots are added to the end e.g. <PLACEHOLDER...>
+    In front of the three dots one may add a custom separator e.g. <PLACEHOLDER,...>, <PLACEHOLDER:...>, ...
+    """
 
     def __init__(self, format_string: str):
-        # <PLACEHOLDER:CODEC[:CODEC ...]>
         try:
             assert(format_string.startswith("<") and format_string.endswith(">"))
             self.format_string = format_string[1:-1]
-            self.codecs = [item.lower() for item in self.format_string.split(":")]
-            self.name = self.codecs.pop(0)
-        except:
+            self.name, codecs, self.repeatable = re.findall(r"<(\w+)((?::\w+)*)([^A-Za-z0-9]?\.\.\.)?>", format_string.lower()).pop()
+            self.codecs = list(filter(None, codecs.split(":")))
+        except Exception as e:
             raise Exception("Transforming placeholders failed! Invalid format!")
+
+    def _get_delimiter(self):
+        """ The delimiter used when repeatable (default = " "). """
+        return " " if not self.repeatable or len(self.repeatable) == 3 else self.repeatable[0]
+
+    delimiter = property(_get_delimiter)
 
 
 class Data(defaultdict):
@@ -148,7 +176,7 @@ class Data(defaultdict):
             else:
                 self[placeholder_key].append(values)
 
-    def to_data_frame(self, filter_string=None):
+    def to_data_frame(self):
         # Create table data with equally sized lists by filling them with empty strings
         # e.g. { 'placeholder-1': ('a','b','c'), 'placeholder-2': ('d','','') }
         table_data = Data()
@@ -160,9 +188,6 @@ class Data(defaultdict):
                 table_data.append(placeholder, "")
 
         data_frame = pd.DataFrame(table_data).astype(str)
-
-        if filter_string:
-            data_frame = data_frame.query(filter_string)
 
         return data_frame.T
 
@@ -337,10 +362,7 @@ class DataBuilder(object):
         if self._format_string:
             # Parse placeholders from format string
             # Remove duplicate placeholders while preserving order
-            self._placeholders = list(
-                OrderedDict.fromkeys(
-                    PlaceholderFormat("<" + placeholder_format + ">") \
-                        for placeholder_format in re.findall(r"<(\w+[:\w+]*)>", self._format_string)))
+            self._placeholders = FormatStringParser(self._format_string).get_placeholders()
             for placeholder in self._placeholders:
                 for codec in placeholder.codecs:
                     if codec not in self.config.codecs:
@@ -350,7 +372,7 @@ class DataBuilder(object):
         else:
             return []
 
-    def transform_data(self, filter_string=None):
+    def transform_data(self):
         """
         Transforms the data from a map of placeholders with value lists into a data frame.
         """
@@ -374,6 +396,20 @@ class DataBuilder(object):
                 # Add to temporary data. Remove duplicates while preserving order
                 temporary_data[placeholder_name] = OrderedDict.fromkeys(value)
 
+        # Do not use repeatable placeholders when creating matrix.
+        repeatable_placeholders = {}
+        placeholder_names = list(temporary_data.keys())
+        for placeholder_name in placeholder_names:
+            placeholders = [p for p in self.get_placeholders() if p.name == placeholder_name]
+            is_repeatable = len([p for p in placeholders if p.repeatable]) > 0
+            if is_repeatable:
+                if len(placeholders) == is_repeatable:
+                    # All placeholders in the format string are repeatable placeholders e.g. "<ARG...> <ARG...>"
+                    repeatable_placeholders[placeholder_name] = temporary_data.pop(placeholder_name, None)
+                else:
+                    # Not repeatable and repeatable placeholders are defined in format string e.g. "<ARG...> <ARG>"
+                    repeatable_placeholders[placeholder_name] = copy.deepcopy(temporary_data[placeholder_name])
+
         # Create matrix from data e.g. (('a','d'), ('b','d'), ('c','d'))
         data_matrix = list(itertools.product(*[temporary_data[key] for key in temporary_data.keys()]))
 
@@ -383,15 +419,13 @@ class DataBuilder(object):
         for i in range(0, len(data_matrix)):
             for j in range(0, len(data_keys)):
                 table_data.append(data_keys[j], data_matrix[i][j])
+            for placeholder_name in repeatable_placeholders:
+                # Store repeatable placeholder in table_data as list.
+                # Use different key to avoid overwriting placeholders which is not repeatable.
+                table_data.append(placeholder_name + "...", [[item for item in repeatable_placeholders[placeholder_name]]])
 
         # Create data frame from table data
-        # Handle everything as string which requires that the user needs to put quotes around every value in the filter.
-        # This makes it easier to write such filter-queries in the long run since no one needs to think about whether
-        # to put quotes around a value or not.
-        data_frame = pd.DataFrame(table_data).astype(str)
-
-        if filter_string:
-            data_frame = data_frame.query(filter_string)
+        data_frame = pd.DataFrame(table_data)
 
         return data_frame
 
@@ -399,18 +433,36 @@ class DataBuilder(object):
         return [placeholder.name for placeholder in self.get_placeholders()]
 
     def _apply_codecs(self, row, placeholder):
-        value = row[placeholder.name]
-        for codec in placeholder.codecs:
-            value = self.config.codecs[codec].run(value)
-        return value
+        # Access values
+        # Note: When placeholder is repeatable we need to append "..." to the name.
+        #       See transform_data method for more information regarding that matter.
+        row_item = row[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
+        if isinstance(row_item, list):
+            values = []
+            for value in row_item:
+                for codec in placeholder.codecs:
+                    value = self.config.codecs[codec].run(value)
+                values.append(value)
+            return placeholder.delimiter.join(values)
+        else:
+            value = row_item
+            for codec in placeholder.codecs:
+                value = self.config.codecs[codec].run(value)
+            return value
 
-    def build(self, filter_string=None):
+    def build(self):
         result = []
         if self._format_string:
-            data_frame = self.transform_data(filter_string)
+            data_frame = self.transform_data()
 
             placeholder_names = self._get_placeholder_names()
-            unset_placeholders = [placeholder_name for placeholder_name in placeholder_names if placeholder_name not in data_frame.keys()]
+
+            # Note: When placeholder is repeatable we need to append "..." to the name.
+            #       See transform_data method for more information regarding that matter.
+            unset_placeholders = [
+                placeholder_name for placeholder_name in placeholder_names
+                                  if placeholder_name not in data_frame.keys() and
+                                     placeholder_name + "..." not in data_frame.keys()]
             if unset_placeholders:
                 raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
@@ -497,9 +549,11 @@ class Snippet(object):
         return self.config.get_reserved_placeholder_names()
 
     def list_unset_placeholders(self):
+        """ Returns the placeholders in the format string which are not associated with any value yet. """
         unset_placeholders = []
         for placeholder in self.list_placeholders():
-            if placeholder not in self.data and placeholder not in self.list_reserved_placeholders():
+            if placeholder not in self.data and \
+                    placeholder not in self.list_reserved_placeholders():
                 unset_placeholders.append(placeholder)
         return unset_placeholders
 
@@ -531,8 +585,8 @@ class Snippet(object):
                             self.data[placeholder] = []
                             _import_environment(placeholder, data)
 
-    def build(self, filter_string=None):
-        return DataBuilder(self.format_string, self.data, self.codec_formats, self.config).build(filter_string)
+    def build(self):
+        return DataBuilder(self.format_string, self.data, self.codec_formats, self.config).build()
 
 
 def __main__():
@@ -601,9 +655,6 @@ def __main__():
     parser.add_argument('-c', '--codec-list', action="store_true",
                         dest='codec_list',
                         help="Lists all available codecs.")
-    parser.add_argument('--filter', action="store", metavar="STRING", dest='filter',
-                        help="The filter to include/exclude results "
-                             "(e.g. --filter 'PLACEHOLDER==xx.* and PLACEHOLDER!=.*yy').")
     parser.add_argument('--env', '--environment', action="store_true",
                         dest='environment',
                         help="Shows all environment variables.")
@@ -678,17 +729,40 @@ def __main__():
             snippet.import_data_file(arguments.import_file)
 
         if arguments.data_values:
+            placeholder = None
             unset_placeholders = snippet.list_unset_placeholders()
+            last_assigned_placeholder = None
             for data_val in arguments.data_values:
                 if data_val:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
-                    for placeholder, values in FormatArgumentParser().parse(data_val).items():
-                        if not placeholder:
-                            if len(unset_placeholders) == 0:
-                                logger.warning(
-                                    "WARNING: Can not assign '{}' to unknown placeholder!".format(", ".join(values)))
-                                continue
-                            placeholder = unset_placeholders.pop(0)
-                        snippet.data.append(placeholder, values)
+                    for assigned_placeholder, assigned_values in FormatArgumentParser().parse(data_val).items():
+                        if assigned_placeholder:
+                            # $ snippet -f "<arg>" arg=val
+                            placeholder = assigned_placeholder
+                            last_assigned_placeholder = assigned_placeholder
+                        else:
+                            # $ snippet -f "<arg>" val
+                            if last_assigned_placeholder:
+                                # Use the last assigned placeholder if any.
+                                # $ snippet -f "<arg>" arg=val1 val2
+                                placeholder = last_assigned_placeholder
+                            else:
+                                # Use the next not-assigned placeholder in the format string.
+                                # $ snippet -f "<arg>" val1 val2
+                                if len(unset_placeholders) == 0:
+                                    if not placeholder:
+                                        # No placeholders left to assign values to.
+                                        # $ snippet -f "text" val1
+                                        logger.warning(
+                                            "WARNING: Can not assign '{}' to unknown placeholder!".format(
+                                                ", ".join(assigned_values)))
+                                        continue
+                                    else:
+                                        # Use the last placeholder if any.
+                                        # $ snippet -f "<arg1> <arg2>" val1 val2 val3
+                                        pass
+                                else:
+                                    placeholder = unset_placeholders.pop(0)
+                        snippet.data.append(placeholder, assigned_values)
 
         snippet.import_environment(Snippet.ImportEnvironmentMode.default)
 
@@ -696,7 +770,7 @@ def __main__():
             print(snippet.list_environment())
             sys.exit(0)
 
-        for line in snippet.build(arguments.filter):
+        for line in snippet.build():
             print(line)
 
         sys.exit(0)

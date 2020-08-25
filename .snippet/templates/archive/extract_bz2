@@ -1,1 +1,1 @@
-tar -xjvf <archive>
+tar -xjvf <archive:squote>
