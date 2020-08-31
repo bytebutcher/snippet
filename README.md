@@ -32,7 +32,7 @@ sudo ln -s $PWD/snippet /usr/bin/snippet
 
 To enable bash-completion you might add following line to your .bashrc:
 ```bash
-eval "$(register-python-argcomplete snippet)"
+eval "$(register-python-argcomplete3 snippet)"
 ```
 Make sure to add the ```snippet``` directory to your ```PATH``` or link it accordingly:
 ```
@@ -50,8 +50,10 @@ ln -s /path/to/snippet.py /usr/bin/snippet
 
 3. [Using string formats](#Using-string-formats)
    1. [Using the --format-string argument](#Using-the---format-string-argument)
-   2. [Using templates](#Using-templates)
-4. [Transforming strings using codecs](#Transforming-strings-using-codecs)
+   2. [Using input from a pipe](#Using-input-from-a-pipe)
+   3. [Using templates](#Using-templates)
+   4. [Using codecs](#Using-codecs)
+   4. [Using optional arguments](#Using-optional-arguments)
 5. [Executing commands](#Executing-commands)
 6. [See also](#See-also)
 
@@ -220,13 +222,13 @@ hello snippet - 20200322034102
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
 template names. 
 
-If you want to review a specific template you can use the ```-v | --template-view``` argument:
+If you want to review a specific template you can use the ```-v | --view-template``` argument:
 ```
 $ snippet -t example -v
 echo '<arg1> <arg2> - <date_time>'
 ```
 
-To list all available templates you can use the ```-l | --template-list```
+To list all available templates you can use the ```-l | --list-templates```
 parameter:
 
 ```
@@ -265,13 +267,13 @@ web/fuzz/wfuzz-basic
 web/fuzz/wfuzz-ext
 ```
 
-### Transforming strings using codecs
+#### Using codecs
 
 ```snippet``` supports simple string transformation. A list of available codecs can be viewed by using the
-```--codec-list | -c``` argument:
+```--list-codecs``` argument:
 
 ```
-$ snippet -c
+$ snippet --list-codecs
 b64
 md5
 safe_filename
@@ -288,6 +290,25 @@ $ snippet -f "<arg:b64>" "hello snippet"
 aGVsbG8gcmV2YW1w
 $ snippet -f "<arg> <arg:b64:b64>" "hello snippet"
 hello snippet YUdWc2JHOGdjbVYyWVcxdw==
+```
+
+#### Using optional arguments
+
+```snippet``` supports specifying optional parts in the string format by surrounding them with 
+square-brackets:
+```
+$ snippet -f "<arg> [<arg2>]" hello snippet
+hello snippet
+$ snippet -f "<arg> [<arg2>]" hello
+hello
+```
+
+If you need these characters to be part of the string format you need to
+escape them accordingly:
+
+```
+$ snippet -f "\[<arg>\]" hello
+[hello]
 ```
 
 ### Executing commands

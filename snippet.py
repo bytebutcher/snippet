@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
-import copy
-import shlex
-import shutil
-import subprocess
-import traceback
+import argcomplete, argparse
+
 from collections import defaultdict, OrderedDict
 from enum import Enum
 
-import argcomplete, argparse
-import csv
-import re
-from pathlib import Path
-import logging
 import os
 import sys
-import itertools
+from pathlib import Path
+import logging
+import shutil
+import copy
+import subprocess
+import traceback
 
+import re
+import itertools
+import csv
+import shlex
+from pyparsing import nestedExpr
 from iterfzf import iterfzf
 
 try:
@@ -26,7 +28,7 @@ except:
     sys.exit(1)
 
 app_name = "snippet"
-app_version = "1.0l"
+app_version = "1.0m"
 
 # Configuration files
 # ===================
@@ -116,16 +118,80 @@ class FormatArgumentParser(object):
         return {"": value}
 
 
-class FormatStringParser:
+class PlaceholderFormatParser:
 
     def __init__(self, format_string):
         self._format_string = format_string
 
-    def get_placeholders(self):
+    def parse(self):
         return list(
             OrderedDict.fromkeys(
                 PlaceholderFormat("<" + placeholder_format + ">") \
                     for placeholder_format in re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?)>", self._format_string)))
+
+
+class FormatStringParser:
+
+    def __init__(self, format_string, arguments):
+        self._format_string = format_string
+        self._arguments = arguments
+
+    def _parse_format_string(self, format_string, arguments):
+        i, parentheses = self._parse_parentheses(format_string)
+        print(parentheses)
+        if not parentheses:
+            return format_string
+        essentials = self._remove_optionals(parentheses, arguments)
+        if not essentials:
+            return format_string
+        return "".join(self._flatten_list(essentials))
+
+    def _remove_optionals(self, parts, arguments):
+        result = []
+        for part in parts:
+            if isinstance(part, str):
+                placeholders = PlaceholderFormatParser(part).parse()
+                for placeholder in placeholders:
+                    if not placeholder.name in arguments:
+                        return []
+                result.append(part)
+            elif isinstance(part, list):
+                result.append(self._remove_optionals(part, arguments))
+        return result
+
+    def _flatten_list(self, lst):
+        result = []
+        for item in lst:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, list):
+                for i in self._flatten_list(item):
+                    result.append(i)
+        return result
+
+    def _parse_parentheses(self, format_string, i=0, balance=0):
+        components = []
+        start = i
+        while i < len(format_string):
+            c = format_string[i]
+            if c == "[":
+                if i > 0:
+                    components.append(format_string[start:i])
+                i, result = self._parse_parentheses(format_string, i + 1, balance + 1)
+                components.append(result)
+                start = i + 1
+            elif c == "]":
+                balance = balance - 1
+                components.append(format_string[start:i])
+                if balance < 0:
+                    raise Exception("Unbalanced parentheses!")
+                return i, components
+            i = i + 1
+
+        return i, components
+
+    def parse(self):
+        return self._parse_format_string(self._format_string, self._arguments)
 
 
 class PlaceholderFormat:
@@ -290,7 +356,7 @@ class Config(object):
             return None
         for format_template_path in self.format_template_paths:
             format_template_file = os.path.join(format_template_path, format_template_name)
-            if os.path.exists(format_template_file):
+            if os.path.isfile(format_template_file):
                 return format_template_file
         return None
 
@@ -339,7 +405,7 @@ class Config(object):
 
         try:
             with open(format_template_file) as f:
-                return os.sep.join(f.read().splitlines())
+                return format_template_name, os.sep.join(f.read().splitlines())
         except:
             raise Exception("Loading {} failed! Invalid template format!".format(format_template_name or "template"))
 
@@ -349,28 +415,12 @@ class Config(object):
 class DataBuilder(object):
 
     def __init__(self, format_string, data, codec_formats, config):
-        self._format_string = format_string
+        # Encode '\['- and '\]'-sequences since '[' and ']' is used for defining optionals (see StringFormatParser).
+        self._format_string = format_string.replace('\\[', chr(14)).replace('\\]', chr(15))
         self._placeholders = []
         self.data = data
         self.config = config
         self.codec_formats = codec_formats
-
-    def get_placeholders(self):
-        if self._placeholders:
-            return list(self._placeholders)
-
-        if self._format_string:
-            # Parse placeholders from format string
-            # Remove duplicate placeholders while preserving order
-            self._placeholders = FormatStringParser(self._format_string).get_placeholders()
-            for placeholder in self._placeholders:
-                for codec in placeholder.codecs:
-                    if codec not in self.config.codecs:
-                        raise Exception("Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
-
-            return list(self._placeholders)
-        else:
-            return []
 
     def transform_data(self):
         """
@@ -429,6 +479,24 @@ class DataBuilder(object):
 
         return data_frame
 
+    def get_placeholders(self):
+        if self._placeholders:
+            return list(self._placeholders)
+
+        if self._format_string:
+            # Parse placeholders from format string
+            # Remove duplicate placeholders while preserving order
+            self._format_string = FormatStringParser(self._format_string, self.data.keys()).parse()
+            self._placeholders = PlaceholderFormatParser(self._format_string).parse()
+            for placeholder in self._placeholders:
+                for codec in placeholder.codecs:
+                    if codec not in self.config.codecs:
+                        raise Exception("Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
+
+            return list(self._placeholders)
+        else:
+            return []
+
     def _get_placeholder_names(self):
         return [placeholder.name for placeholder in self.get_placeholders()]
 
@@ -453,6 +521,7 @@ class DataBuilder(object):
     def build(self):
         result = []
         if self._format_string:
+
             data_frame = self.transform_data()
 
             placeholder_names = self._get_placeholder_names()
@@ -467,15 +536,18 @@ class DataBuilder(object):
                 raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
             if len(data_frame) == 0:
-                return [self._format_string]
+                # Decode '\['- and '\]'-sequences again (see StringFormatParser).
+                result.append(self._format_string.replace(chr(14), "[").replace(chr(15), "]"))
+            else:
+                for index, row in data_frame.iterrows():
+                    # Replace placeholders in format string with values
+                    output_line = self._format_string
+                    for placeholder in self.get_placeholders():
+                        value = self._apply_codecs(row, placeholder)
+                        output_line = output_line.replace("<" + placeholder.format_string + ">", value)
 
-            for index, row in data_frame.iterrows():
-                # Replace placeholders in format string with values
-                output_line = self._format_string
-                for placeholder in self.get_placeholders():
-                    value = self._apply_codecs(row, placeholder)
-                    output_line = output_line.replace("<" + placeholder.format_string + ">", value)
-                result.append(output_line)
+                    # Decode '\['- and '\]'-sequences again (see StringFormatParser).
+                    result.append(output_line.replace(chr(14), "[").replace(chr(15), "]"))
 
         return result
 
@@ -487,12 +559,19 @@ class Snippet(object):
         replace = 3
         ignore = 4
 
-    format_string = None
     codec_formats = {}
     data = Data()
 
     def __init__(self, config: Config):
+        self._format_string = None
         self.config = config
+
+    def _get_format_string(self):
+        return self._format_string
+
+    def _set_format_string(self, format_string):
+        #self.config.logger.info("Format:\t\t{}".format(format_string))
+        self._format_string = format_string
 
     def create_or_edit_template(self, template_name):
         home_template_path = os.path.join(home_config_path, "templates")
@@ -516,7 +595,8 @@ class Snippet(object):
             raise Exception("Creating '{}' failed!".format(template_name))
 
     def use_template(self, template_name):
-        self.format_string = self.config.get_format_template(template_name)
+        format_template_name, format_string = self.config.get_format_template(template_name)
+        #self.config.logger.info("Template:\t{}".format(format_template_name))
         return self.format_string
 
     def list_templates(self, filter_string=None):
@@ -542,8 +622,12 @@ class Snippet(object):
             temporary_data[placeholder] = reserved_placeholder_values[placeholder]
         return temporary_data.to_data_frame()
 
-    def list_placeholders(self):
-        return [placeholder.name for placeholder in DataBuilder(self.format_string, self.data, self.codec_formats, self.config).get_placeholders()]
+    def list_placeholders(self, show_optionals=True):
+        if show_optionals:
+            return [placeholder.name for placeholder in PlaceholderFormatParser(self.format_string).parse()]
+        else:
+            format_string = FormatStringParser(self.format_string, self.data.keys()).parse()
+            return [placeholder.name for placeholder in PlaceholderFormatParser(format_string).parse()]
 
     def list_reserved_placeholders(self):
         return self.config.get_reserved_placeholder_names()
@@ -592,6 +676,7 @@ class Snippet(object):
     def build(self):
         return DataBuilder(self.format_string, self.data, self.codec_formats, self.config).build()
 
+    format_string = property(_get_format_string, _set_format_string)
 
 def __main__():
     config = Config(app_name, [home_config_path, app_config_path])
@@ -649,15 +734,15 @@ def __main__():
                         dest='template_name',
                         help="The template to use as format string.") \
         .completer = argparse_template_completer
-    parser.add_argument('-v', '--template-view', action="store_true",
+    parser.add_argument('-v', '--view-template', action="store_true",
                         dest='view_template',
                         help="Views the template instead of using it as generator. Can only be used in combination with "
                              "the --template argument.")
-    parser.add_argument('-l', '--templates-list', action="store_true",
+    parser.add_argument('-l', '--list-templates', action="store_true",
                         dest='list_templates',
                         help="Lists all available templates.")
-    parser.add_argument('-c', '--codec-list', action="store_true",
-                        dest='codec_list',
+    parser.add_argument('--list-codecs', action="store_true",
+                        dest='list_codecs',
                         help="Lists all available codecs.")
     parser.add_argument('--env', '--environment', action="store_true",
                         dest='environment',
@@ -676,7 +761,7 @@ def __main__():
             snippet.create_or_edit_template(arguments.edit)
             sys.exit(0)
 
-        if arguments.codec_list and arguments.list_templates:
+        if arguments.list_codecs and arguments.list_templates:
             raise Exception("--codec-list can not be used in combination with --template-list!")
 
         if arguments.list_templates:
@@ -687,7 +772,7 @@ def __main__():
                 print(template_name)
             sys.exit(0)
 
-        if arguments.codec_list:
+        if arguments.list_codecs:
             codec_names = snippet.list_codecs()
             if not codec_names:
                 logger.warning("WARNING: No codecs found!")
