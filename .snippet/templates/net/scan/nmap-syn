@@ -1,1 +1,1 @@
-nmap -vvv -sS -p <rports> <rhost> -oA nmap-syn-<rhost>_ports-<rports>_<date_time>
+nmap -vvv -sS -p <rport,...> <rhost,...> -oA nmap-syn-<rhost,...>_ports-<rport,...>_<date_time>

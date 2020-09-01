@@ -446,14 +446,17 @@ class DataBuilder(object):
                 # Add to temporary data. Remove duplicates while preserving order
                 temporary_data[placeholder_name] = OrderedDict.fromkeys(value)
 
-        # Do not use repeatable placeholders when creating matrix.
+        # Move placeholders which are tagged as repeatable (e.g. <ARG...>) to temporary map before creating matrix.
         repeatable_placeholders = {}
         placeholder_names = list(temporary_data.keys())
         for placeholder_name in placeholder_names:
-            placeholders = [p for p in self.get_placeholders() if p.name == placeholder_name]
-            is_repeatable = len([p for p in placeholders if p.repeatable]) > 0
+            # Get all placeholders specified in the string format which have the same name.
+            _p = [p for p in self.get_placeholders() if p.name == placeholder_name]
+            # Get all placeholders specified in the string format which are repeatable and have the same name.
+            _r = [p for p in _p if p.repeatable]
+            is_repeatable = len(_r) > 0
             if is_repeatable:
-                if len(placeholders) == is_repeatable:
+                if len(_p) == len(_r):
                     # All placeholders in the format string are repeatable placeholders e.g. "<ARG...> <ARG...>"
                     repeatable_placeholders[placeholder_name] = temporary_data.pop(placeholder_name, None)
                 else:
@@ -461,9 +464,11 @@ class DataBuilder(object):
                     repeatable_placeholders[placeholder_name] = copy.deepcopy(temporary_data[placeholder_name])
 
         # Create matrix from data e.g. (('a','d'), ('b','d'), ('c','d'))
+        # This list does only contain placeholders which are not tagged as repeatable (e.g. <ARG...>).
         data_matrix = list(itertools.product(*[temporary_data[key] for key in temporary_data.keys()]))
 
         # Create table data from matrix e.g. { 'placeholder-1': ('a','b','c'), 'placeholder-2': ('d','d','d') }
+        # Add placeholders which are tagged as repeatable (e.g. <ARG...>) to the table data again.
         data_keys = list(temporary_data.keys())
         table_data = Data()
         for i in range(0, len(data_matrix)):
