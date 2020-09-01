@@ -186,6 +186,7 @@ class FormatStringParser:
                 return i, components
             i = i + 1
 
+        components.append(format_string[start:len(format_string)])
         return i, components
 
     def parse(self):
@@ -412,11 +413,26 @@ class Config(object):
     editor = property(_get_editor)
 
 
+class EscapedSquareBracketCodec:
+
+    @staticmethod
+    def encode(str):
+        """ Encodes \[ and \] to chr(14) and chr(15). """
+        return str.replace('\\[', chr(14)).replace('\\]', chr(15))
+
+    @staticmethod
+    def decode(str):
+        """ Decodes chr(14) and chr(15) to [ and ]. """
+        return str.replace(chr(14), "[").replace(chr(15), "]")
+
+
 class DataBuilder(object):
 
     def __init__(self, format_string, data, codec_formats, config):
-        # Encode '\['- and '\]'-sequences since '[' and ']' is used for defining optionals (see StringFormatParser).
-        self._format_string = format_string.replace('\\[', chr(14)).replace('\\]', chr(15))
+        # Since square brackets are used for specifying optional parts in the string format the user needs to escape
+        # them (e.g. \[ or \]). Since our parser can not differentiate between escaped and unescaped square brackets
+        # we encode them here and decode them at the end of the build function again.
+        self._format_string = EscapedSquareBracketCodec.encode(format_string)
         self._placeholders = []
         self.data = data
         self.config = config
@@ -541,35 +557,35 @@ class DataBuilder(object):
                 raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
             if len(data_frame) == 0:
-                # Decode '\['- and '\]'-sequences again (see StringFormatParser).
-                result.append(self._format_string.replace(chr(14), "[").replace(chr(15), "]"))
+                # No placeholders are defined in the format string.
+                result.append(self._format_string)
             else:
                 for index, row in data_frame.iterrows():
-                    # Replace placeholders in format string with values
+                    # Replace placeholders in format string with values.
                     output_line = self._format_string
                     for placeholder in self.get_placeholders():
                         value = self._apply_codecs(row, placeholder)
                         output_line = output_line.replace("<" + placeholder.format_string + ">", value)
 
-                    # Decode '\['- and '\]'-sequences again (see StringFormatParser).
-                    result.append(output_line.replace(chr(14), "[").replace(chr(15), "]"))
+                    result.append(output_line)
 
-        return result
+        # Decode encoded '\['- and '\]'-sequences again (see __init__ method for more information).
+        return [EscapedSquareBracketCodec.decode(line) for line in result]
 
 
 class Snippet(object):
+
     class ImportEnvironmentMode(Enum):
         default = 1
         append = 2
         replace = 3
         ignore = 4
 
-    codec_formats = {}
-    data = Data()
-
     def __init__(self, config: Config):
         self._format_string = None
         self.config = config
+        self.codec_formats = {}
+        self.data = Data()
 
     def _get_format_string(self):
         return self._format_string
@@ -577,6 +593,42 @@ class Snippet(object):
     def _set_format_string(self, format_string):
         self._log_info("Format = {}".format(format_string))
         self._format_string = format_string
+
+    def _set_arguments(self, data_values):
+        placeholder = None
+        unset_placeholders = self.list_unset_placeholders()
+        last_assigned_placeholder = None
+        for data_value in data_values:
+            if data_value:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
+                for assigned_placeholder, assigned_values in FormatArgumentParser().parse(data_value).items():
+                    if assigned_placeholder:
+                        # $ snippet -f "<arg>" arg=val
+                        placeholder = assigned_placeholder
+                        last_assigned_placeholder = assigned_placeholder
+                    else:
+                        # $ snippet -f "<arg>" val
+                        if last_assigned_placeholder:
+                            # Use the last assigned placeholder if any.
+                            # $ snippet -f "<arg>" arg=val1 val2
+                            placeholder = last_assigned_placeholder
+                        else:
+                            # Use the next not-assigned placeholder in the format string.
+                            # $ snippet -f "<arg>" val1 val2
+                            if len(unset_placeholders) == 0:
+                                if not placeholder:
+                                    # No placeholders left to assign values to.
+                                    # $ snippet -f "text" val1
+                                    self.config.logger.warning(
+                                        " WARN: Can not assign '{}' to unknown placeholder!".format(
+                                            ", ".join(assigned_values)))
+                                    continue
+                                else:
+                                    # Use the last placeholder if any.
+                                    # $ snippet -f "<arg1> <arg2>" val1 val2 val3
+                                    pass
+                            else:
+                                placeholder = unset_placeholders.pop(0)
+                    self.data.append(placeholder, assigned_values)
 
     def _set_verbose(self, verbose):
         self.config.verbose = verbose
@@ -613,7 +665,6 @@ class Snippet(object):
         format_template_name, format_string = self.config.get_format_template(template_name)
         self._log_info("Template = {}".format(format_template_name))
         self.format_string = format_string
-        return self.format_string
 
     def list_templates(self, filter_string=None):
         template_names = self.config.get_format_template_names()
@@ -693,6 +744,7 @@ class Snippet(object):
         return DataBuilder(self._get_format_string(), self.data, self.codec_formats, self.config).build()
 
     format_string = property(_get_format_string, _set_format_string)
+    arguments = property(fset=_set_arguments)
     verbose = property(_get_verbose, _set_verbose)
 
 def __main__():
@@ -709,8 +761,13 @@ def __main__():
         epilog="""
     Placeholder presets:
     
-    """ + os.linesep.join(["  {} {}".format(("<" + x.name + ">").ljust(20), x.description) for x in
+""" + os.linesep.join(["  {}  {}".format(("<" + x.name + ">").rjust(20, ' '), x.description) for x in
                            config.get_reserved_placeholders()]) + """
+
+    Codecs:
+    
+""" + os.linesep.join(["  {}  {}".format(x.rjust(20, ' '), config.codecs[x].__doc__.splitlines()[1].strip()) for x in
+                           config.codecs.keys()]) + """
     
     Examples:
     
@@ -726,15 +783,18 @@ def __main__():
         # When no template is specified an interactive template search prompt is displayed
         $ snippet rhost:hosts.txt
         
-        # Transforming strings
-        $ snippet -f "echo 'hello <arg1> (<arg2>)';" -c arg2=arg1:b64 snippet
+        # Using codecs
+        $ snippet -f "echo 'hello <arg1> (<arg1:b64>)';" snippet
+        
+        # Using optional arguments
+        $ snippet -f "echo '<arg1>[ <arg2>]'" snippet 
         """
     )
     parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',
                         help='When no placeholder is specified the first unset placeholder found in the format string will '
                              'be replaced with the value(s). Otherwise the specified placeholder will be replaced with '
                              'the value or the content of the file. A list of values can be assigned by explicitly '
-                             'declaring the placeholder (e.g. "ARG1=val1" "ARG1=val2").')
+                             'declaring the placeholder (e.g. "ARG1=val1" "ARG2=val2").')
     parser.add_argument('-e', '--edit', action="store", metavar="NAME",
                         dest='edit',
                         help="Edit (or create) a snippet with the specified name.") \
@@ -762,10 +822,10 @@ def __main__():
                         help="Shows all environment variables.")
     parser.add_argument('-v', '--verbose', action="store_true",
                         dest='verbose',
-                        help="Prints additional information like the string format or template which is being used.")
+                        help="Prints additional information (e.g. string format, template).")
     parser.add_argument('-d', '--debug', action="store_true",
                         dest='debug',
-                        help="Activates the debug mode.")
+                        help="Prints additional debug information (e.g. stack traces).")
 
     argcomplete.autocomplete(parser)
     arguments = parser.parse_args()
@@ -812,7 +872,7 @@ def __main__():
             snippet.format_string = arguments.format_string
 
         if arguments.template_name:
-            format_string = snippet.use_template(arguments.template_name)
+            snippet.use_template(arguments.template_name)
 
         if not sys.stdin.isatty():
             snippet.format_string = sys.stdin.readline().rstrip()
@@ -825,46 +885,13 @@ def __main__():
             if not template_name:
                 sys.exit(1)
 
-            format_string = snippet.use_template(template_name)
+            snippet.use_template(template_name)
 
         if arguments.import_file:
             snippet.import_data_file(arguments.import_file)
 
         if arguments.data_values:
-            placeholder = None
-            unset_placeholders = snippet.list_unset_placeholders()
-            last_assigned_placeholder = None
-            for data_val in arguments.data_values:
-                if data_val:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
-                    for assigned_placeholder, assigned_values in FormatArgumentParser().parse(data_val).items():
-                        if assigned_placeholder:
-                            # $ snippet -f "<arg>" arg=val
-                            placeholder = assigned_placeholder
-                            last_assigned_placeholder = assigned_placeholder
-                        else:
-                            # $ snippet -f "<arg>" val
-                            if last_assigned_placeholder:
-                                # Use the last assigned placeholder if any.
-                                # $ snippet -f "<arg>" arg=val1 val2
-                                placeholder = last_assigned_placeholder
-                            else:
-                                # Use the next not-assigned placeholder in the format string.
-                                # $ snippet -f "<arg>" val1 val2
-                                if len(unset_placeholders) == 0:
-                                    if not placeholder:
-                                        # No placeholders left to assign values to.
-                                        # $ snippet -f "text" val1
-                                        logger.warning(
-                                            "WARNING: Can not assign '{}' to unknown placeholder!".format(
-                                                ", ".join(assigned_values)))
-                                        continue
-                                    else:
-                                        # Use the last placeholder if any.
-                                        # $ snippet -f "<arg1> <arg2>" val1 val2 val3
-                                        pass
-                                else:
-                                    placeholder = unset_placeholders.pop(0)
-                        snippet.data.append(placeholder, assigned_values)
+            snippet.arguments = arguments.data_values
 
         snippet.import_environment(Snippet.ImportEnvironmentMode.default)
 
