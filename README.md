@@ -222,12 +222,6 @@ hello snippet - 20200322034102
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
 template names. 
 
-If you want to review a specific template you can use the ```-v | --view-template``` argument:
-```
-$ snippet -t example -v
-echo '<arg1> <arg2> - <date_time>'
-```
-
 To list all available templates you can use the ```-l | --list-templates```
 parameter:
 

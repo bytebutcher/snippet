@@ -17,7 +17,6 @@ import re
 import itertools
 import csv
 import shlex
-from pyparsing import nestedExpr
 from iterfzf import iterfzf
 
 try:
@@ -28,7 +27,7 @@ except:
     sys.exit(1)
 
 app_name = "snippet"
-app_version = "1.0m"
+app_version = "1.0n"
 
 # Configuration files
 # ===================
@@ -138,7 +137,6 @@ class FormatStringParser:
 
     def _parse_format_string(self, format_string, arguments):
         i, parentheses = self._parse_parentheses(format_string)
-        print(parentheses)
         if not parentheses:
             return format_string
         essentials = self._remove_optionals(parentheses, arguments)
@@ -288,6 +286,8 @@ class Codec(object):
 
 
 class Config(object):
+
+    verbose = False
 
     def __init__(self, app_name, paths):
         self.paths = paths
@@ -570,8 +570,18 @@ class Snippet(object):
         return self._format_string
 
     def _set_format_string(self, format_string):
-        #self.config.logger.info("Format:\t\t{}".format(format_string))
+        self._log_info("Format = {}".format(format_string))
         self._format_string = format_string
+
+    def _set_verbose(self, verbose):
+        self.config.verbose = verbose
+
+    def _get_verbose(self):
+        return self.config.verbose
+
+    def _log_info(self, msg):
+        if self._get_verbose():
+            self.config.logger.info(" INFO: {}".format(msg))
 
     def create_or_edit_template(self, template_name):
         home_template_path = os.path.join(home_config_path, "templates")
@@ -596,7 +606,8 @@ class Snippet(object):
 
     def use_template(self, template_name):
         format_template_name, format_string = self.config.get_format_template(template_name)
-        #self.config.logger.info("Template:\t{}".format(format_template_name))
+        self._log_info("Template = {}".format(format_template_name))
+        self.format_string = format_string
         return self.format_string
 
     def list_templates(self, filter_string=None):
@@ -674,9 +685,10 @@ class Snippet(object):
                             _import_environment(placeholder, data)
 
     def build(self):
-        return DataBuilder(self.format_string, self.data, self.codec_formats, self.config).build()
+        return DataBuilder(self._get_format_string(), self.data, self.codec_formats, self.config).build()
 
     format_string = property(_get_format_string, _set_format_string)
+    verbose = property(_get_verbose, _set_verbose)
 
 def __main__():
     config = Config(app_name, [home_config_path, app_config_path])
@@ -734,10 +746,6 @@ def __main__():
                         dest='template_name',
                         help="The template to use as format string.") \
         .completer = argparse_template_completer
-    parser.add_argument('-v', '--view-template', action="store_true",
-                        dest='view_template',
-                        help="Views the template instead of using it as generator. Can only be used in combination with "
-                             "the --template argument.")
     parser.add_argument('-l', '--list-templates', action="store_true",
                         dest='list_templates',
                         help="Lists all available templates.")
@@ -747,6 +755,9 @@ def __main__():
     parser.add_argument('--env', '--environment', action="store_true",
                         dest='environment',
                         help="Shows all environment variables.")
+    parser.add_argument('-v', '--verbose', action="store_true",
+                        dest='verbose',
+                        help="Prints additional information like the string format or template which is being used.")
     parser.add_argument('-d', '--debug', action="store_true",
                         dest='debug',
                         help="Activates the debug mode.")
@@ -757,6 +768,9 @@ def __main__():
     config.logger.setLevel(logging.DEBUG if arguments.debug else logging.INFO)
 
     try:
+        if arguments.verbose:
+            snippet.verbose = True
+
         if arguments.edit:
             snippet.create_or_edit_template(arguments.edit)
             sys.exit(0)
@@ -794,9 +808,6 @@ def __main__():
 
         if arguments.template_name:
             format_string = snippet.use_template(arguments.template_name)
-            if arguments.view_template:
-                print(format_string)
-                sys.exit(0)
 
         if not sys.stdin.isatty():
             snippet.format_string = sys.stdin.readline().rstrip()
@@ -810,9 +821,6 @@ def __main__():
                 sys.exit(1)
 
             format_string = snippet.use_template(template_name)
-            if arguments.view_template:
-                print(format_string)
-                sys.exit(0)
 
         if arguments.import_file:
             snippet.import_data_file(arguments.import_file)
