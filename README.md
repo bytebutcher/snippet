@@ -47,15 +47,15 @@ ln -s /path/to/snippet.py /usr/bin/snippet
    2. [Using environment variables](#Using-environment-variables)
    3. [Importing from csv-files](#Importing-from-csv-files)
    4. [Using presets](#Using-presets)
-
 3. [Using string formats](#Using-string-formats)
    1. [Using the --format-string argument](#Using-the---format-string-argument)
    2. [Using input from a pipe](#Using-input-from-a-pipe)
    3. [Using templates](#Using-templates)
    4. [Using codecs](#Using-codecs)
-   4. [Using optional arguments](#Using-optional-arguments)
-5. [Executing commands](#Executing-commands)
-6. [See also](#See-also)
+   5. [Using optional arguments](#Using-optional-arguments)
+   6. [Using defaults](#Using-defaults)
+4. [Executing commands](#Executing-commands)
+5. [See also](#See-also)
 
 ### Overview
 
@@ -223,60 +223,12 @@ If you have bash-completion enabled you can press ```<TAB>``` twice to autocompl
 template names. 
 
 To list all available templates you can use the ```-l | --list-templates```
-parameter:
-
-```
-$ snippet -l
-net/enum/enum4linux-basic
-net/scan/nmap-basic
-net/scan/nmap-ping
-net/scan/nmap-syn
-net/scan/nmap-version
-os/exec/bash-curl
-os/exec/bash-wget
-os/exec/cmd-webdav
-os/exec/powershell-http
-os/exec/powershell-webdav
-os/exec/xargs-parallel
-shell/listener/nc
-shell/listener/ncat
-shell/listener/netcat
-shell/listener/socat
-shell/reverse/linux/groovy
-shell/reverse/linux/java
-shell/reverse/linux/perl
-shell/reverse/linux/php
-shell/reverse/linux/python
-shell/reverse/linux/ruby
-shell/reverse/multi/powershell
-shell/reverse/multi/python
-shell/reverse/multi/socat
-shell/reverse/windows/groovy
-shell/reverse/windows/perl
-shell/reverse/windows/ruby
-shell/upgrade/pty
-web/fuzz/gobuster-basic
-web/fuzz/nikto-basic
-web/fuzz/wfuzz-basic
-web/fuzz/wfuzz-ext
-```
+parameter.
 
 #### Using codecs
 
 ```snippet``` supports simple string transformation. A list of available codecs can be viewed by using the
-```--list-codecs``` argument:
-
-```
-$ snippet --list-codecs
-b64
-md5
-safe_filename
-sha1
-sha256
-sha512
-url
-url_plus
-```
+```--list-codecs``` argument.
 
 To transform a placeholder use the ```<PLACEHOLDER[:CODEC ...]>``` format:
 ```
@@ -303,6 +255,15 @@ escape them accordingly:
 ```
 $ snippet -f "\[<arg>\]" hello
 [hello]
+```
+
+#### Using defaults
+
+```snippet``` supports specifying default values for your placeholders:
+
+```
+$ snippet -f "<arg1> <arg2=default>" hello
+hello default
 ```
 
 ### Executing commands

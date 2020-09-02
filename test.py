@@ -21,7 +21,7 @@ class TestSum(unittest.TestCase):
 
     def test_simple_placeholder_file_test(self):
         self.assertEqual(new_snippet("abc <arg1> <arg2> def", ["arg1=test", "arg2:test/data.txt"]), [
-            "abc test 1234567 def", "abc test QWERTYU def", "abc test  a b c  def"])
+            "abc test 1234567 def", "abc test QWERTYU def", "abc test  a b c def"])
 
     def test_codec(self):
         self.assertEqual(new_snippet("abc <arg1> <arg1:b64> <arg2> <arg2:b64:b64> def", ["arg1=test", "arg2=tset"]), [
@@ -52,6 +52,33 @@ class TestSum(unittest.TestCase):
             "abc "
         ])
 
+    def test_placeholder_default_text(self):
+        self.assertEqual(new_snippet("abc <arg1==!test!=>", []), [
+            "abc =!test!="
+        ])
+
+    def test_placeholder_default_text_with_codec(self):
+        self.assertEqual(new_snippet("abc <arg1:b64=test>", []), [
+            "abc dGVzdA=="
+        ])
+
+    def test_repeatable_placeholder_default_text(self):
+        self.assertEqual(new_snippet("abc <arg1...=test>", []), [
+            "abc test"
+        ])
+
+    def test_repeatable_placeholder_default_text_with_codec(self):
+        self.assertEqual(new_snippet("abc <arg1:b64...=test>", []), [
+            "abc dGVzdA=="
+        ])
+
+    def test_optional_default_text(self):
+        self.assertEqual(new_snippet("<arg1> [<arg2=test> <arg3>]", ["arg1=123", "arg3=321"]), [
+            "123 test 321"
+        ])
+        self.assertEqual(new_snippet("<arg1> [<arg2=test> <arg3>]", ["arg1=123"]), [
+            "123 "
+        ])
 
 if __name__ == '__main__':
     unittest.main()

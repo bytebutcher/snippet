@@ -19,15 +19,10 @@ import csv
 import shlex
 from iterfzf import iterfzf
 
-try:
-    import pandas as pd
-except:
-    sys.stderr.write("Missing python3 package pandas! ")
-    sys.stderr.write("Please install requirements using 'pip3 install -r requirements.txt" + os.linesep)
-    sys.exit(1)
+from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0n"
+app_version = "1.0o"
 
 # Configuration files
 # ===================
@@ -126,7 +121,8 @@ class PlaceholderFormatParser:
         return list(
             OrderedDict.fromkeys(
                 PlaceholderFormat("<" + placeholder_format + ">") \
-                    for placeholder_format in re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?)>", self._format_string)))
+                    for placeholder_format in \
+                        re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>", self._format_string)))
 
 
 class FormatStringParser:
@@ -150,7 +146,7 @@ class FormatStringParser:
             if isinstance(part, str):
                 placeholders = PlaceholderFormatParser(part).parse()
                 for placeholder in placeholders:
-                    if not placeholder.name in arguments:
+                    if not placeholder.name in arguments and not placeholder.default:
                         return []
                 result.append(part)
             elif isinstance(part, list):
@@ -209,8 +205,9 @@ class PlaceholderFormat:
         try:
             assert(format_string.startswith("<") and format_string.endswith(">"))
             self.format_string = format_string[1:-1]
-            self.name, codecs, self.repeatable = re.findall(r"<(\w+)((?::\w+)*)([^A-Za-z0-9]?\.\.\.)?>", format_string.lower()).pop()
+            self.name, codecs, self.repeatable, self.default = re.findall(r"<(\w+)((?::\w+)*)([^A-Za-z0-9]?\.\.\.)?(=[^>]+)?>", format_string.lower()).pop()
             self.codecs = list(filter(None, codecs.split(":")))
+            self.default = self.default[1:] if self.default else None # Remove the equal-sign at the beginning.
         except Exception as e:
             raise Exception("Transforming placeholders failed! Invalid format!")
 
@@ -252,9 +249,7 @@ class Data(defaultdict):
             for i in range(0, max_length - len(self[placeholder])):
                 table_data.append(placeholder, "")
 
-        data_frame = pd.DataFrame(table_data).astype(str)
-
-        return data_frame.T
+        return table_data
 
     def import_from_file(self, import_file_path, delimiter):
         if not os.path.exists(import_file_path):
@@ -432,11 +427,16 @@ class DataBuilder(object):
         # Since square brackets are used for specifying optional parts in the string format the user needs to escape
         # them (e.g. \[ or \]). Since our parser can not differentiate between escaped and unescaped square brackets
         # we encode them here and decode them at the end of the build function again.
-        self._format_string = EscapedSquareBracketCodec.encode(format_string)
-        self._placeholders = []
         self.data = data
         self.config = config
         self.codec_formats = codec_formats
+        self._format_string = FormatStringParser(EscapedSquareBracketCodec.encode(format_string), data.keys()).parse()
+        self._placeholders = PlaceholderFormatParser(self._format_string).parse()
+        for placeholder in self._placeholders:
+            for codec in placeholder.codecs:
+                if codec not in self.config.codecs:
+                    raise Exception(
+                        "Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
 
     def transform_data(self):
         """
@@ -495,37 +495,18 @@ class DataBuilder(object):
                 # Use different key to avoid overwriting placeholders which is not repeatable.
                 table_data.append(placeholder_name + "...", [[item for item in repeatable_placeholders[placeholder_name]]])
 
-        # Create data frame from table data
-        data_frame = pd.DataFrame(table_data)
-
-        return data_frame
+        return table_data
 
     def get_placeholders(self):
-        if self._placeholders:
-            return list(self._placeholders)
-
-        if self._format_string:
-            # Parse placeholders from format string
-            # Remove duplicate placeholders while preserving order
-            self._format_string = FormatStringParser(self._format_string, self.data.keys()).parse()
-            self._placeholders = PlaceholderFormatParser(self._format_string).parse()
-            for placeholder in self._placeholders:
-                for codec in placeholder.codecs:
-                    if codec not in self.config.codecs:
-                        raise Exception("Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
-
-            return list(self._placeholders)
-        else:
-            return []
+        return list(self._placeholders)
 
     def _get_placeholder_names(self):
         return [placeholder.name for placeholder in self.get_placeholders()]
 
-    def _apply_codecs(self, row, placeholder):
+    def _apply_codecs(self, row_item, placeholder):
         # Access values
         # Note: When placeholder is repeatable we need to append "..." to the name.
         #       See transform_data method for more information regarding that matter.
-        row_item = row[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
         if isinstance(row_item, list):
             values = []
             for value in row_item:
@@ -543,6 +524,11 @@ class DataBuilder(object):
         result = []
         if self._format_string:
 
+            placeholders = self.get_placeholders()
+            for placeholder in placeholders:
+                if placeholder.name not in self.data.keys() and placeholder.default:
+                    self.data.append(placeholder.name, placeholder.default)
+
             data_frame = self.transform_data()
 
             placeholder_names = self._get_placeholder_names()
@@ -556,15 +542,17 @@ class DataBuilder(object):
             if unset_placeholders:
                 raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
-            if len(data_frame) == 0:
+            length = len(data_frame[list(data_frame.keys())[0]]) if data_frame.keys() else 0
+            if length == 0:
                 # No placeholders are defined in the format string.
                 result.append(self._format_string)
             else:
-                for index, row in data_frame.iterrows():
+                for i in range(0, length):
                     # Replace placeholders in format string with values.
                     output_line = self._format_string
                     for placeholder in self.get_placeholders():
-                        value = self._apply_codecs(row, placeholder)
+                        row = data_frame[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
+                        value = self._apply_codecs(row[i], placeholder)
                         output_line = output_line.replace("<" + placeholder.format_string + ">", value)
 
                     result.append(output_line)
@@ -680,21 +668,18 @@ class Snippet(object):
         else:
             return sorted(self.config.codecs.keys())
 
-    def list_environment(self, filter_string=None):
+    def list_environment(self):
         temporary_data = Data()
         for placeholder in self.data.keys():
             temporary_data[placeholder] = self.data[placeholder]
         reserved_placeholder_values = self.config.get_reserved_placeholder_values()
         for placeholder in reserved_placeholder_values.keys():
             temporary_data[placeholder] = reserved_placeholder_values[placeholder]
-        return temporary_data.to_data_frame()
+        return tabulate(temporary_data.to_data_frame(), headers="keys")
 
-    def list_placeholders(self, show_optionals=True):
-        if show_optionals:
-            return [placeholder.name for placeholder in PlaceholderFormatParser(self.format_string).parse()]
-        else:
-            format_string = FormatStringParser(self.format_string, self.data.keys()).parse()
-            return [placeholder.name for placeholder in PlaceholderFormatParser(format_string).parse()]
+
+    def list_placeholders(self):
+        return [placeholder.name for placeholder in PlaceholderFormatParser(self.format_string).parse()]
 
     def list_reserved_placeholders(self):
         return self.config.get_reserved_placeholder_names()
