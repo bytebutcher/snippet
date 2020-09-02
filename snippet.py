@@ -547,11 +547,10 @@ class DataBuilder(object):
                     values = list(set(data_frame[argument]))
                     for i in range(len(values)):
                         value = values[i]
-                        print(" INFO:   {} {} {}".format(
+                        self.config.logger.info(" INFO:   {} {} {}".format(
                             argument if i == 0 else len(argument) * " ",
                             "=" if i == 0 else "|",
                             value))
-                        init = 0
 
             # Note: When placeholder is repeatable we need to append "..." to the name.
             #       See transform_data method for more information regarding that matter.
