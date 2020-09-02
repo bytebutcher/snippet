@@ -21,7 +21,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0q"
+app_version = "1.0r"
 
 # Configuration files
 # ===================
@@ -344,7 +344,6 @@ class Config(object):
         for format_template_path in self.format_template_paths:
             format_template_file = os.path.join(format_template_path, format_template_name)
             if os.path.isfile(format_template_file):
-                print(format_template_file)
                 return format_template_file
 
         return None
@@ -504,7 +503,12 @@ class DataBuilder(object):
         return list(self._placeholders)
 
     def _get_placeholder_names(self):
-        return [placeholder.name for placeholder in self.get_placeholders()]
+        """
+        Returns the placeholder names.
+        """
+        # Note: While there might be multiple placeholders with the same name e.g. <ARG>, <ARG...> <ARG=123> we return
+        #       the name only once.
+        return set([placeholder.name for placeholder in self.get_placeholders()])
 
     def _apply_codecs(self, row_item, placeholder):
         # Access values
@@ -535,6 +539,19 @@ class DataBuilder(object):
             data_frame = self.transform_data()
 
             placeholder_names = self._get_placeholder_names()
+
+            if self.config.verbose:
+                # Print placeholders and the assigned values (verbose).
+                self.config.logger.info(" INFO: Placeholders = {}".format(",".join(placeholder_names)))
+                for argument in data_frame.keys():
+                    values = list(set(data_frame[argument]))
+                    for i in range(len(values)):
+                        value = values[i]
+                        print(" INFO:   {} {} {}".format(
+                            argument if i == 0 else len(argument) * " ",
+                            "=" if i == 0 else "|",
+                            value))
+                        init = 0
 
             # Note: When placeholder is repeatable we need to append "..." to the name.
             #       See transform_data method for more information regarding that matter.
@@ -620,6 +637,9 @@ class Snippet(object):
                             else:
                                 placeholder = unset_placeholders.pop(0)
                     self.data.append(placeholder, assigned_values)
+
+    def _get_arguments(self):
+        return self.data
 
     def _set_verbose(self, verbose):
         self.config.verbose = verbose
@@ -727,7 +747,7 @@ class Snippet(object):
         return DataBuilder(self._get_format_string(), self.data, self.codec_formats, self.config).build()
 
     format_string = property(_get_format_string, _set_format_string)
-    arguments = property(fset=_set_arguments)
+    arguments = property(_get_arguments, _set_arguments)
     verbose = property(_get_verbose, _set_verbose)
 
 def __main__():

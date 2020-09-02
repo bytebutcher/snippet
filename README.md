@@ -43,12 +43,12 @@ eval "$(register-python-argcomplete3 snippet)"
    2. [Using environment variables](#Using-environment-variables)
    3. [Using presets](#Using-presets)
 3. [Using string formats](#Using-string-formats)
-   1. [Using the --format-string argument](#Using-the---format-string-argument)
+   1. [Using on-the-fly transformation](#Using-the---format-string-argument)
    2. [Using input from a pipe](#Using-input-from-a-pipe)
    3. [Using templates](#Using-templates)
-   4. [Using codecs](#Using-codecs)
-   5. [Using optional arguments](#Using-optional-arguments)
-   6. [Using defaults](#Using-defaults)
+   4. [Using optionals](#Using-optionals)
+   5. [Using defaults](#Using-defaults)
+   6. [Using codecs](#Using-codecs)
 4. [Executing commands](#Executing-commands)
 5. [See also](#See-also)
 
@@ -56,11 +56,11 @@ eval "$(register-python-argcomplete3 snippet)"
 
 The following overview shows various examples of how ```snippet``` can be used:
 ```
-# Add or edit a snippet (will open vim)
+# Adding or editing a snippet (will open vim)
 $ snippet -e example
 hello, <arg1>!
 
-# Use the snippet with a custom argument
+# Using arguments
 $ snippet -t example world
 hello, world!
 
@@ -68,27 +68,36 @@ hello, world!
 $ snippet -f "hello, <arg1>!" world
 hello, world!
 
-# Assigning multiple values and making use of presets
-$ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
-ping -c 1 localhost > ping_localhost_20770413000000.log;
-ping -c 1 github.com > ping_github.com_20770413000000.log;
+# Using presets
+$ snippet -f "hello, <arg>! It's <date_time>!" world
+hello, world! It's 20770413000000!
 
-# Making use of repeatable placeholders
-$ snippet -f "tar -czvf <archive> <file...>" archive.tgz file=file1 file2
-tar -czvf archive.tgz file1 file2
-
-# Using templates and reading arguments from a file
+# Using files
 $ cat <<EOF > input.txt
-localhost
-github.com
+world
+universe
 EOF
-$ snippet -t net/scan/nmap-ping rhost:hosts.txt
-nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
-nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
+$ snippet -f "hello, <arg>!" arg:input.txt
+hello, world!
+hello, universe!
 
-# Transforming strings
-$ snippet -f "echo 'hello <arg1> (<arg1:b64>)';" snippet
-echo 'hello snippet (cmV2YW1w)';
+# Using repeatables
+$ snippet -f "hello, <arg...>" arg:input.txt
+hello, world universe
+
+# Using optionals
+$ snippet -f "hello[, <arg>]"
+hello
+$ snippet -f "hello[, <arg>]" world
+hello, world!
+
+# Using defaults
+$ snippet -f "hello, <arg=world>!"
+hello, world!
+
+# Using codecs
+$ snippet -f "echo 'hello <arg1>! (<arg1:b64>)';" world
+echo 'hello, world! (cmV2YW1w)';
 ```
 
 ### Assigning data to placeholders
@@ -110,15 +119,17 @@ echo 'hello snippet';
 echo 'hello world';
 ```
 
-In addition values can be directly imported from a file:
+#### Using input files
+
+Values can be directly imported from a file:
 ```
 $ cat <<EOF > input.txt
-snippet
 world
+universe
 EOF
 $ snippet -f "echo 'hello <arg1>';" arg1:input.txt
 echo 'hello world';
-echo 'hello snippet';
+echo 'hello universe';
 ```
 
 #### Using environment variables
