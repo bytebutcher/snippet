@@ -32,18 +32,20 @@ app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".sn
 home_config_path = os.path.join(str(Path.home()), ".snippet")
 
 
-class FormatArgumentParser(object):
+class FormatArgumentParser:
 
-    def parse(self, format_arguments: str):
+    @staticmethod
+    def parse(format_arguments: str):
         # Accepted data set format:
         #   PLACEHOLDER=VALUE | PLACEHOLDER:FILE [... PLACEHOLDER=VALUE | PLACEHOLDER:FILE]
         result = Data()
-        for format_argument in self.__reformat_arguments(format_arguments):
-            for key, value in self.__parse(format_argument).items():
+        for format_argument in FormatArgumentParser.__reformat_arguments(format_arguments):
+            for key, value in FormatArgumentParser.__parse(format_argument).items():
                 result.append(key, value)
         return result
 
-    def __reformat_arguments(self, format_arguments: str) -> list:
+    @staticmethod
+    def __reformat_arguments(format_arguments: str) -> list:
         """
         Reformat format arguments which were passed as single string but contain multiple placeholders with values
         while missing the necessary quotes to parse them correctly with shlex.
@@ -66,15 +68,17 @@ class FormatArgumentParser(object):
         reformatted_arguments.append(" ".join(reformatted_argument))
         return reformatted_arguments
 
-    def __parse(self, format_argument: str):
-        separator = self.__get_separator(format_argument)
+    @staticmethod
+    def __parse(format_argument: str):
+        separator = FormatArgumentParser.__get_separator(format_argument)
         return {
-            "=": self.__parse_placeholder_value,
-            ":": self.__parse_placeholder_file,
-            "": self.__parse_value
+            "=": FormatArgumentParser.__parse_placeholder_value,
+            ":": FormatArgumentParser.__parse_placeholder_file,
+            "": FormatArgumentParser.__parse_value
         }.get(separator)(format_argument, separator)
 
-    def __get_separator(self, format_argument: str):
+    @staticmethod
+    def __get_separator(format_argument: str):
         string_sep_pos = format_argument.find("=")
         file_sep_pos = format_argument.find(":")
         if (string_sep_pos <= 0 and file_sep_pos <= 0):
@@ -87,14 +91,16 @@ class FormatArgumentParser(object):
             # When one separator is found, return it
             return "=" if string_sep_pos > 0 else ":"
 
-    def __parse_placeholder_value(self, placeholder_value: str, sep: str):
+    @staticmethod
+    def __parse_placeholder_value(placeholder_value: str, sep: str):
         try:
             placeholder, value = placeholder_value.split(sep)
             return {placeholder: value}
         except:
             raise Exception("Parsing '{}' failed! Unknown error!".format(placeholder_value))
 
-    def __parse_placeholder_file(self, placeholder_file: str, sep: str):
+    @staticmethod
+    def __parse_placeholder_file(placeholder_file: str, sep: str):
         placeholder, file = placeholder_file.split(sep)
         if not os.path.isfile(file):
             raise Exception("Parsing '{}' failed! File not found!".format(placeholder_file))
@@ -108,62 +114,61 @@ class FormatArgumentParser(object):
         except:
             raise Exception("Parsing '{}' failed! Invalid file format!".format(placeholder_file))
 
-    def __parse_value(self, value: str, sep: str):
+    @staticmethod
+    def __parse_value(value: str, sep: str):
         return {"": value}
 
 
 class PlaceholderFormatParser:
 
-    def __init__(self, format_string):
-        self._format_string = format_string
-
-    def parse(self):
+    @staticmethod
+    def parse(format_string):
         return list(
             OrderedDict.fromkeys(
                 PlaceholderFormat("<" + placeholder_format + ">") \
                     for placeholder_format in \
-                        re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>", self._format_string)))
+                        re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>", format_string or "")))
 
 
 class FormatStringParser:
 
-    def __init__(self, format_string, arguments):
-        self._format_string = format_string
-        self._arguments = arguments
-
-    def _parse_format_string(self, format_string, arguments):
-        i, parentheses = self._parse_parentheses(format_string)
+    @staticmethod
+    def parse(format_string, arguments):
+        i, parentheses = FormatStringParser._parse_parentheses(format_string)
         if not parentheses:
             return format_string
-        essentials = self._remove_optionals(parentheses, arguments)
+        essentials = FormatStringParser._remove_optionals(parentheses, arguments)
         if not essentials:
             return format_string
-        return "".join(self._flatten_list(essentials))
+        return "".join(FormatStringParser._flatten_list(essentials))
 
-    def _remove_optionals(self, parts, arguments):
+    @staticmethod
+    def _remove_optionals(parts, arguments):
         result = []
         for part in parts:
             if isinstance(part, str):
-                placeholders = PlaceholderFormatParser(part).parse()
+                placeholders = PlaceholderFormatParser.parse(part)
                 for placeholder in placeholders:
                     if not placeholder.name in arguments and not placeholder.default:
                         return []
                 result.append(part)
             elif isinstance(part, list):
-                result.append(self._remove_optionals(part, arguments))
+                result.append(FormatStringParser._remove_optionals(part, arguments))
         return result
 
-    def _flatten_list(self, lst):
+    @staticmethod
+    def _flatten_list(lst):
         result = []
         for item in lst:
             if isinstance(item, str):
                 result.append(item)
             elif isinstance(item, list):
-                for i in self._flatten_list(item):
+                for i in FormatStringParser._flatten_list(item):
                     result.append(i)
         return result
 
-    def _parse_parentheses(self, format_string, i=0, balance=0):
+    @staticmethod
+    def _parse_parentheses(format_string, i=0, balance=0):
         components = []
         start = i
         while i < len(format_string):
@@ -171,7 +176,7 @@ class FormatStringParser:
             if c == "[":
                 if i > 0:
                     components.append(format_string[start:i])
-                i, result = self._parse_parentheses(format_string, i + 1, balance + 1)
+                i, result = FormatStringParser._parse_parentheses(format_string, i + 1, balance + 1)
                 components.append(result)
                 start = i + 1
             elif c == "]":
@@ -184,9 +189,6 @@ class FormatStringParser:
 
         components.append(format_string[start:len(format_string)])
         return i, components
-
-    def parse(self):
-        return self._parse_format_string(self._format_string, self._arguments)
 
 
 class PlaceholderFormat:
@@ -430,8 +432,8 @@ class DataBuilder(object):
         self.data = data
         self.config = config
         self.codec_formats = codec_formats
-        self._format_string = FormatStringParser(EscapedSquareBracketCodec.encode(format_string), data.keys()).parse()
-        self._placeholders = PlaceholderFormatParser(self._format_string).parse()
+        self._format_string = FormatStringParser.parse(EscapedSquareBracketCodec.encode(format_string), data.keys())
+        self._placeholders = PlaceholderFormatParser.parse(self._format_string)
         for placeholder in self._placeholders:
             for codec in placeholder.codecs:
                 if codec not in self.config.codecs:
@@ -444,12 +446,13 @@ class DataBuilder(object):
         """
         temporary_data = Data()
 
+        # Add all data which has an associated placeholder to a temporary dict.
         placeholder_names = self._get_placeholder_names()
         for placeholder_name in self.data.keys():
             if placeholder_name in placeholder_names:
-                # Add to temporary data. Remove duplicates while preserving order
-                temporary_data[placeholder_name] = OrderedDict.fromkeys(self.data[placeholder_name])
+                temporary_data[placeholder_name] = self.data[placeholder_name]
 
+        # Do not allow using reserved placeholders.
         reserved_placeholder_values = self.config.get_reserved_placeholder_values()
         if any(reserved_placeholder in temporary_data.keys() for reserved_placeholder in
                reserved_placeholder_values.keys()):
@@ -457,6 +460,7 @@ class DataBuilder(object):
                 ', '.join(["<" + placeholder_name + ">" for placeholder_name in reserved_placeholder_values.keys() if
                            placeholder_name in temporary_data])))
 
+        # Add all reserved placeholders which have an associated placeholder to the temporary dict.
         for placeholder_name, value in reserved_placeholder_values.items():
             if placeholder_name in placeholder_names:
                 # Add to temporary data. Remove duplicates while preserving order
@@ -570,7 +574,7 @@ class Snippet(object):
         ignore = 4
 
     def __init__(self, config: Config):
-        self._format_string = None
+        self._format_string = ""
         self.config = config
         self.codec_formats = {}
         self.data = Data()
@@ -588,7 +592,7 @@ class Snippet(object):
         last_assigned_placeholder = None
         for data_value in data_values:
             if data_value:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
-                for assigned_placeholder, assigned_values in FormatArgumentParser().parse(data_value).items():
+                for assigned_placeholder, assigned_values in FormatArgumentParser.parse(data_value).items():
                     if assigned_placeholder:
                         # $ snippet -f "<arg>" arg=val
                         placeholder = assigned_placeholder
@@ -679,7 +683,7 @@ class Snippet(object):
 
 
     def list_placeholders(self):
-        return [placeholder.name for placeholder in PlaceholderFormatParser(self.format_string).parse()]
+        return [placeholder.name for placeholder in PlaceholderFormatParser.parse(self.format_string)]
 
     def list_reserved_placeholders(self):
         return self.config.get_reserved_placeholder_names()
@@ -864,13 +868,6 @@ def __main__():
 
         if not snippet.format_string:
             snippet.format_string = os.environ.get("FORMAT_STRING")
-
-        if not snippet.format_string:
-            template_name = iterfzf(snippet.list_templates())
-            if not template_name:
-                sys.exit(1)
-
-            snippet.use_template(template_name)
 
         if arguments.import_file:
             snippet.import_data_file(arguments.import_file)

@@ -91,9 +91,6 @@ $ snippet -t net/scan/nmap-ping rhost:hosts.txt
 nmap -vvv -sP localhost -oA nmap-ping_localhost_20770413000000
 nmap -vvv -sP github.com -oA nmap-ping_github.com_20770413000000
 
-# When no template is specified an interactive search prompt will be displayed
-$ snippet rhost:hosts.txt
-
 # Transforming strings
 $ snippet -f "echo 'hello <arg1> (<arg1:b64>)';" snippet
 echo 'hello snippet (cmV2YW1w)';
