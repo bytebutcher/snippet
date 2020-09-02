@@ -15,14 +15,13 @@ import traceback
 
 import re
 import itertools
-import csv
 import shlex
 from iterfzf import iterfzf
 
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0o"
+app_version = "1.0p"
 
 # Configuration files
 # ===================
@@ -252,22 +251,6 @@ class Data(defaultdict):
                 table_data.append(placeholder, "")
 
         return table_data
-
-    def import_from_file(self, import_file_path, delimiter):
-        if not os.path.exists(import_file_path):
-            raise Exception("Importing '{}' failed! File not found!".format(import_file_path))
-
-        try:
-            with open(import_file_path, 'r') as f:
-                reader = csv.DictReader(f, delimiter=delimiter, quoting=csv.QUOTE_NONE)
-                for line in reader:
-                    for placeholder in line.keys():
-                        value = line[placeholder]
-                        if value:
-                            placeholder_key = placeholder.lower()
-                            self.append(placeholder_key, value)
-        except:
-            raise Exception("Importing '{}' failed! Invalid file format!".format(import_file_path))
 
 
 class Codec(object):
@@ -697,11 +680,6 @@ class Snippet(object):
                 unset_placeholders.append(placeholder)
         return unset_placeholders
 
-    def import_data_file(self, import_file_path, delimiter=None):
-        if not delimiter:
-            delimiter = self.config.profile.csv_delimiter if self.config.profile else '\t'
-        self.data.import_from_file(import_file_path, delimiter)
-
     def import_environment(self, mode=ImportEnvironmentMode.default):
         placeholders = self.list_placeholders()
         reserved_placeholders = self.config.get_reserved_placeholder_values().keys()
@@ -792,10 +770,6 @@ def __main__():
                         dest='format_string',
                         help="The format of the data to generate. "
                              "The placeholders are identified by less than (<) and greater than (>) signs.")
-    parser.add_argument('-i', '--import', action="store", metavar="FILE", dest='import_file',
-                        help="Replace the placeholders found in the format string with the values found in the specified "
-                             "file. The file should start with a header which specifies the placeholders. Values should "
-                             "be separated by a tab character which can be customized in the profile file. ")
     parser.add_argument('-t', '--template', action="store", metavar="FILE",
                         dest='template_name',
                         help="The template to use as format string.") \
@@ -868,9 +842,6 @@ def __main__():
 
         if not snippet.format_string:
             snippet.format_string = os.environ.get("FORMAT_STRING")
-
-        if arguments.import_file:
-            snippet.import_data_file(arguments.import_file)
 
         if arguments.data_values:
             snippet.arguments = arguments.data_values

@@ -45,8 +45,7 @@ ln -s /path/to/snippet.py /usr/bin/snippet
 2. [Assigning data to placeholders](#Assigning-data-to-placeholders)
    1. [Using positional arguments](#Using-positional-arguments)
    2. [Using environment variables](#Using-environment-variables)
-   3. [Importing from csv-files](#Importing-from-csv-files)
-   4. [Using presets](#Using-presets)
+   3. [Using presets](#Using-presets)
 3. [Using string formats](#Using-string-formats)
    1. [Using the --format-string argument](#Using-the---format-string-argument)
    2. [Using input from a pipe](#Using-input-from-a-pipe)
@@ -149,23 +148,6 @@ Note that positional arguments may override the evaluation of environment variab
 $ export arg1=snippet
 $ snippet -f "echo 'hello <arg1>';" world
 echo 'hello world';
-```
- 
-#### Importing from csv-files
-
-Data can also be imported from a csv-file using the ```-i | --import``` argument.
-Note, that values must be separated by a tab character
- (which can be changed in ```.snippet/snippet_profile.py```):
-
-```
-$ cat <<EOF > input.csv
-arg1    arg2
-hello   snippet
-        world
-EOF
-$ snippet -f "echo '<arg1> <arg2>';" -i input.csv 
-echo 'hello world';
-echo 'hello snippet';
 ```
 
 #### Using presets

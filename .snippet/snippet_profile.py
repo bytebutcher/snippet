@@ -6,9 +6,6 @@ class Profile():
     # The default editor to use when creating/editing snippets
     editor = "vim"
 
-    # The delimiter used when importing CSV-files
-    csv_delimiter = '\t'
-
     class PlaceholderValue(object):
 
         def __init__(self, name, description, callback):
