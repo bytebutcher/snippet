@@ -34,10 +34,6 @@ To enable bash-completion you might add following line to your .bashrc:
 ```bash
 eval "$(register-python-argcomplete3 snippet)"
 ```
-Make sure to add the ```snippet``` directory to your ```PATH``` or link it accordingly:
-```
-ln -s /path/to/snippet.py /usr/bin/snippet
-```
 
 ## Usage
 
@@ -184,22 +180,28 @@ echo 'hello snippet';
 
 #### Using templates
 
-If you want to persist your format string you can add them to ```snippet```'s template directory
-which can be easily accessed using the interactive search prompt or the ```-t | --template``` argument:
+```snippet``` allows you to import format strings from a file by using the ```-t | --template``` argument.
+
+There are two ways of creating a template:
+
+1.  Create a file with the ```.snippet``` extension:
 ```
-$ mkdir -p ~/.snippet/templates
-$ echo -n "echo '<arg1> <arg2> - <date_time>'" > ~/.snippet/templates/example
+$ echo -n "echo 'hello, <arg>!'" > example.snippet
+$ snippet -t example.snippet world!
+```
 
-# Show an interactive search prompt
-$ snippet arg1=hello arg2=snippet
-
-# Select template by name
-$ snippet -t example arg1=hello arg2=snippet
-hello snippet - 20200322034102
+2. Create a template using the ```-e | --edit``` argument:
+```
+# The following command will open vim
+$ snippet -e example world!
+$ snippet -t example world!
 ```
 
 If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
 template names. 
+
+In addition the ```-t | --template``` argument will open an interactive search prompt 
+when the specified template name was not found.
 
 To list all available templates you can use the ```-l | --list-templates```
 parameter.

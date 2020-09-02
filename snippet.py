@@ -21,7 +21,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0p"
+app_version = "1.0q"
 
 # Configuration files
 # ===================
@@ -335,10 +335,18 @@ class Config(object):
     def _get_template_file(self, format_template_name):
         if not format_template_name:
             return None
+
+        if format_template_name.endswith(".snippet"):
+            # Consider template files in the current working directory.
+            format_template_file = os.path.join(os.getcwd(), format_template_name)
+            return format_template_file if os.path.isfile(format_template_file) else None
+
         for format_template_path in self.format_template_paths:
             format_template_file = os.path.join(format_template_path, format_template_name)
             if os.path.isfile(format_template_file):
+                print(format_template_file)
                 return format_template_file
+
         return None
 
     def _get_editor(self):
@@ -367,12 +375,20 @@ class Config(object):
 
     def get_format_template_names(self):
         format_template_files = []
+        # Get templates from home or app directory.
         for format_template_file_path in self.format_template_paths:
             if os.path.exists(format_template_file_path):
                 for r, d, f in os.walk(format_template_file_path):
                     relpath = r[len(format_template_file_path) + 1:]
                     for file in f:
                         format_template_files.append(os.path.join(relpath, file))
+
+        # Also consider files in the local directory which ends with .snippet.
+        for file in os.listdir(os.fsencode(os.getcwd())):
+            filename = os.fsdecode(file)
+            if os.path.isfile(filename) and filename.endswith(".snippet"):
+                format_template_files.append(filename)
+
         return sorted(list(set(format_template_files)))
 
     def get_format_template(self, format_template_name):
@@ -841,7 +857,7 @@ def __main__():
             snippet.format_string = sys.stdin.readline().rstrip()
 
         if not snippet.format_string:
-            snippet.format_string = os.environ.get("FORMAT_STRING")
+            snippet.format_string = os.environ.get("FORMAT_STRING") or ""
 
         if arguments.data_values:
             snippet.arguments = arguments.data_values
@@ -851,6 +867,10 @@ def __main__():
         if arguments.environment:
             print(snippet.list_environment())
             sys.exit(0)
+
+        if not snippet.format_string:
+            parser.print_usage()
+            sys.exit(1)
 
         for line in snippet.build():
             print(line)
