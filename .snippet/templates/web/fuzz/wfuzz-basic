@@ -1,1 +1,1 @@
-wfuzz -c -w <wordlist=/usr/share/wfuzz/wordlist/general/common.txt> --hc 404,403 [-z list,<extensions>] --oF wfuzz-basic_<rhost>_<date_time>.txt <protocol=https>://<rhost>/<path=FUZZ>
+wfuzz -c -w <wordlist=/usr/share/wfuzz/wordlist/general/common.txt> --hc 404,403 [-z list,<extensions>] --oF wfuzz-basic_<rhost>_<datetime>.txt <protocol=https>://<rhost>/<path=FUZZ>

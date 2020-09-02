@@ -11,7 +11,8 @@ def new_snippet(format_string, arguments):
     s.arguments = arguments
     return s.build()
 
-class TestSum(unittest.TestCase):
+
+class TestSnippet(unittest.TestCase):
 
     def test_no_placeholders(self):
         self.assertEqual(new_snippet("abc def", []), ["abc def"])
@@ -40,6 +41,13 @@ class TestSum(unittest.TestCase):
     def test_optional_arguments_without_middle(self):
         self.assertEqual(new_snippet("abc <arg1> [<arg2>] cba", ["arg1=test"]), [
             "abc test  cba"
+        ])
+
+        self.assertEqual(new_snippet("abc <arg1> [<arg2>] cba <arg3>", ["arg1=test", "arg3=tset"]), [
+            "abc test  cba tset"
+        ])
+        self.assertEqual(new_snippet("abc <arg1> [<arg2>] cba <arg3> bsd", ["arg1=test", "arg3=tset"]), [
+            "abc test  cba tset bsd"
         ])
 
     def test_optional_arguments_with(self):
@@ -79,6 +87,7 @@ class TestSum(unittest.TestCase):
         self.assertEqual(new_snippet("<arg1> [<arg2=test> <arg3>]", ["arg1=123"]), [
             "123 "
         ])
+
 
 if __name__ == '__main__':
     unittest.main()

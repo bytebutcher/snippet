@@ -69,7 +69,7 @@ $ snippet -f "hello, <arg1>!" world
 hello, world!
 
 # Using presets
-$ snippet -f "hello, <arg>! It's <date_time>!" world
+$ snippet -f "hello, <arg>! It's <datetime>!" world
 hello, world! It's 20770413000000!
 
 # Using files
@@ -164,7 +164,7 @@ directly used in your format string
 (see ```.snippet/snippet_profile.py``` for more information). Preset placeholders may have constant  
 but also dynamically generated values assigned to them:
 ```
-$ snippet -f "echo '<date_time>';" 
+$ snippet -f "echo '<datetime>';" 
 echo '20200322034102';
 ```
 

@@ -1,1 +1,1 @@
-nmap -vvv -sV -p <rport,...> <rhost,...> -oA nmap-version_<rhost,...>_ports_<rport,...>_<date_time>
+nmap -vvv -sV -p <rport,...> <rhost,...> -oA nmap-version_<rhost,...>_ports_<rport,...>_<datetime>

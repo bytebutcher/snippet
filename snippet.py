@@ -21,7 +21,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0r"
+app_version = "1.0s"
 
 # Configuration files
 # ===================
@@ -121,22 +121,70 @@ class FormatArgumentParser:
 class PlaceholderFormatParser:
 
     @staticmethod
+    def parse(format_string, parse_optional=True):
+
+        def _parse_parts(parts, i=0):
+            result = []
+            for part in parts:
+                if isinstance(part, str):
+                    for placeholder in _parse_part(part, i):
+                        result.append(placeholder)
+                elif isinstance(part, list):
+                    for placeholder in _parse_parts(part, i+1):
+                        result.append(placeholder)
+            return result
+
+        def _parse_part(part, i):
+            return list(
+                OrderedDict.fromkeys(
+                    PlaceholderFormat("<" + placeholder_format + ">", i == 0) \
+                        for placeholder_format in \
+                            re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>", part or "")))
+
+        if parse_optional:
+            return _parse_parts(ParenthesesParser.parse(format_string))
+        else:
+            return _parse_part(format_string, False)
+
+
+class ParenthesesParser:
+
+    @staticmethod
     def parse(format_string):
-        return list(
-            OrderedDict.fromkeys(
-                PlaceholderFormat("<" + placeholder_format + ">") \
-                    for placeholder_format in \
-                        re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>", format_string or "")))
+
+        def _parse_parentheses(format_string, i=0, balance=0):
+            components = []
+            start = i
+            while i < len(format_string):
+                c = format_string[i]
+                if c == "[":
+                    if i > 0:
+                        components.append(format_string[start:i])
+                    i, result = _parse_parentheses(format_string, i + 1, balance + 1)
+                    components.append(result)
+                    start = i + 1
+                elif c == "]":
+                    balance = balance - 1
+                    components.append(format_string[start:i])
+                    if balance < 0:
+                        raise Exception("Unbalanced parentheses!")
+                    return i, components
+                i = i + 1
+
+            components.append(format_string[start:len(format_string)])
+            return i, components
+
+        return _parse_parentheses(format_string)[1]
 
 
 class FormatStringParser:
 
     @staticmethod
-    def parse(format_string, arguments):
-        i, parentheses = FormatStringParser._parse_parentheses(format_string)
+    def parse(format_string, parameters):
+        parentheses = ParenthesesParser.parse(format_string)
         if not parentheses:
             return format_string
-        essentials = FormatStringParser._remove_optionals(parentheses, arguments)
+        essentials = FormatStringParser._remove_optionals(parentheses, parameters)
         if not essentials:
             return format_string
         return "".join(FormatStringParser._flatten_list(essentials))
@@ -146,7 +194,7 @@ class FormatStringParser:
         result = []
         for part in parts:
             if isinstance(part, str):
-                placeholders = PlaceholderFormatParser.parse(part)
+                placeholders = PlaceholderFormatParser.parse(part, parse_optional=False)
                 for placeholder in placeholders:
                     if not placeholder.name in arguments and not placeholder.default:
                         return []
@@ -166,49 +214,29 @@ class FormatStringParser:
                     result.append(i)
         return result
 
-    @staticmethod
-    def _parse_parentheses(format_string, i=0, balance=0):
-        components = []
-        start = i
-        while i < len(format_string):
-            c = format_string[i]
-            if c == "[":
-                if i > 0:
-                    components.append(format_string[start:i])
-                i, result = FormatStringParser._parse_parentheses(format_string, i + 1, balance + 1)
-                components.append(result)
-                start = i + 1
-            elif c == "]":
-                balance = balance - 1
-                components.append(format_string[start:i])
-                if balance < 0:
-                    raise Exception("Unbalanced parentheses!")
-                return i, components
-            i = i + 1
-
-        components.append(format_string[start:len(format_string)])
-        return i, components
-
 
 class PlaceholderFormat:
     """
-    The specification of the placeholder format.
+    A placeholder does have the following format*:
 
-    A placeholder is surrounded by '<' and '>'.
+        <NAME{:CODEC}~{{SEPARATOR}...}{=DEFAULT}>
 
-    In its simplest form it only contains the name of the placeholder e.g. <PLACEHOLDER>.
-    It may also contain a number of codecs to apply e.g. <PLACEHOLDER:CODEC>, <PLACEHOLDER:CODEC:CODEC>, ...
-    To mark a placeholder to be repeatable three dots are added to the end e.g. <PLACEHOLDER...>
-    In front of the three dots one may add a custom separator e.g. <PLACEHOLDER,...>, <PLACEHOLDER:...>, ...
+        NAME (required)      = The name of the placeholder (\w).
+        CODEC (optional)     = A ist of codecs which should be applied to the assigned argument value.
+        ... (optional)       = When multiple values are assigned they are being joined with SEPARATOR (default=<space>).
+        =DEFAULT (optional)  = Specifies a default value which is being used when no value is assigned.
+
+    *) optional parts are denoted with curly braces and parts which can be repeated are marked with a tilde.
     """
 
-    def __init__(self, format_string: str):
+    def __init__(self, format_string: str, required):
         try:
             assert(format_string.startswith("<") and format_string.endswith(">"))
             self.format_string = format_string[1:-1]
             self.name, codecs, self.repeatable, self.default = re.findall(r"<(\w+)((?::\w+)*)([^A-Za-z0-9]?\.\.\.)?(=[^>]+)?>", format_string.lower()).pop()
             self.codecs = list(filter(None, codecs.split(":")))
             self.default = self.default[1:] if self.default else None # Remove the equal-sign at the beginning.
+            self.required = required
         except Exception as e:
             raise Exception("Transforming placeholders failed! Invalid format!")
 
@@ -412,31 +440,82 @@ class EscapedSquareBracketCodec:
 
     @staticmethod
     def encode(str):
-        """ Encodes \[ and \] to chr(14) and chr(15). """
+        """ Encodes escaped square brackets. """
         return str.replace('\\[', chr(14)).replace('\\]', chr(15))
 
     @staticmethod
     def decode(str):
-        """ Decodes chr(14) and chr(15) to [ and ]. """
+        """ Decodes to square brackets. """
         return str.replace(chr(14), "[").replace(chr(15), "]")
+
+
+class PlaceholderValuePrintFormatter:
+
+    @staticmethod
+    def build(format_string, data_frame):
+        lines = []
+        placeholders = PlaceholderFormatParser.parse(format_string)
+        if not placeholders:
+            # No placeholders in format string.
+            return lines
+
+        # Print list of placeholders.
+        placeholder_names = OrderedDict.fromkeys([placeholder.name for placeholder in placeholders])
+        lines.append("Placeholders = {}".format(",".join(placeholder_names)))
+
+        # Print assigned values for each placeholder.
+        for placeholder in placeholders:
+
+            # Only print placeholder name once.
+            if placeholder.name not in placeholder_names:
+                continue
+            else:
+                placeholder_names.pop(placeholder.name)
+
+            required = "required" if placeholder.required else "optional"
+            if placeholder.name not in data_frame:
+                # No value assigned.
+                lines.append("   {} ({}) = <not assigned>".format(placeholder.name, required))
+            else:
+                # Print list of assigned values.
+                values = list(set(data_frame[placeholder.name]))
+                for i in range(len(values)):
+                    placeholder_name = placeholder.name if i == 0 else len(placeholder.name) * " "
+                    value = values[i]
+                    lines.append("   {} ({}) {} {}".format(placeholder_name, required, "=" if i == 0 else "|", value))
+
+        return lines
 
 
 class DataBuilder(object):
 
     def __init__(self, format_string, data, codec_formats, config):
-        # Since square brackets are used for specifying optional parts in the string format the user needs to escape
-        # them (e.g. \[ or \]). Since our parser can not differentiate between escaped and unescaped square brackets
-        # we encode them here and decode them at the end of the build function again.
         self.data = data
         self.config = config
         self.codec_formats = codec_formats
-        self._format_string = FormatStringParser.parse(EscapedSquareBracketCodec.encode(format_string), data.keys())
-        self._placeholders = PlaceholderFormatParser.parse(self._format_string)
+        self._format_string_original = format_string
+        self._format_string_minified = self._parse_format_string(format_string)
+        self._placeholders = PlaceholderFormatParser.parse(self._format_string_minified)
         for placeholder in self._placeholders:
             for codec in placeholder.codecs:
                 if codec not in self.config.codecs:
                     raise Exception(
                         "Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
+
+    def _parse_format_string(self, format_string):
+        """
+        Initializes the format string.
+
+        This function removes optional parts of the supplied format string which were not set by the user or the
+        snippet system (e.g. reserved placeholders).
+        """
+        # Parameters specified by the user + the reserved placeholders (e.g. <datetime>).
+        parameters = list(self.data.keys()) + list(self.config.get_reserved_placeholder_names())
+        # Parts enclosed by square brackets (e.g. "<arg1> [<arg2>] <arg3>") are considered optional.
+        # Since our parser can not differentiate between user-specified square brackets and those used for specifying
+        # optional parts, the user needs to escape them (e.g. \[ or \]).  To make parsing easier we encode escaped
+        # square brackets here.
+        return FormatStringParser.parse(EscapedSquareBracketCodec.encode(format_string), parameters)
 
     def transform_data(self):
         """
@@ -503,17 +582,11 @@ class DataBuilder(object):
         return list(self._placeholders)
 
     def _get_placeholder_names(self):
-        """
-        Returns the placeholder names.
-        """
-        # Note: While there might be multiple placeholders with the same name e.g. <ARG>, <ARG...> <ARG=123> we return
-        #       the name only once.
+        """ Returns a unique list of placeholder names. """
         return set([placeholder.name for placeholder in self.get_placeholders()])
 
     def _apply_codecs(self, row_item, placeholder):
-        # Access values
-        # Note: When placeholder is repeatable we need to append "..." to the name.
-        #       See transform_data method for more information regarding that matter.
+        """ Applies the codecs specified in the placeholder to the assigned values. """
         if isinstance(row_item, list):
             values = []
             for value in row_item:
@@ -529,7 +602,7 @@ class DataBuilder(object):
 
     def build(self):
         result = []
-        if self._format_string:
+        if self._format_string_minified:
 
             placeholders = self.get_placeholders()
             for placeholder in placeholders:
@@ -538,22 +611,14 @@ class DataBuilder(object):
 
             data_frame = self.transform_data()
 
-            placeholder_names = self._get_placeholder_names()
-
             if self.config.verbose:
-                # Print placeholders and the assigned values (verbose).
-                self.config.logger.info(" INFO: Placeholders = {}".format(",".join(placeholder_names)))
-                for argument in data_frame.keys():
-                    values = list(set(data_frame[argument]))
-                    for i in range(len(values)):
-                        value = values[i]
-                        self.config.logger.info(" INFO:   {} {} {}".format(
-                            argument if i == 0 else len(argument) * " ",
-                            "=" if i == 0 else "|",
-                            value))
+                # Print all placeholders and the assigned values (verbose).
+                for line in PlaceholderValuePrintFormatter.build(self._format_string_original, data_frame):
+                    self.config.logger.info(" INFO: {}".format(line))
 
             # Note: When placeholder is repeatable we need to append "..." to the name.
             #       See transform_data method for more information regarding that matter.
+            placeholder_names = [placeholder.name for placeholder in self.get_placeholders() if placeholder.required]
             unset_placeholders = [
                 placeholder_name for placeholder_name in placeholder_names
                                   if placeholder_name not in data_frame.keys() and
@@ -564,11 +629,11 @@ class DataBuilder(object):
             length = len(data_frame[list(data_frame.keys())[0]]) if data_frame.keys() else 0
             if length == 0:
                 # No placeholders are defined in the format string.
-                result.append(self._format_string)
+                result.append(self._format_string_minified)
             else:
                 for i in range(0, length):
                     # Replace placeholders in format string with values.
-                    output_line = self._format_string
+                    output_line = self._format_string_minified
                     for placeholder in self.get_placeholders():
                         row = data_frame[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
                         value = self._apply_codecs(row[i], placeholder)
@@ -576,7 +641,7 @@ class DataBuilder(object):
 
                     result.append(output_line)
 
-        # Decode encoded '\['- and '\]'-sequences again (see __init__ method for more information).
+        # Decode encoded '\['- and '\]'-sequences to '[' and ']' (see __init__ method for more information).
         return [EscapedSquareBracketCodec.decode(line) for line in result]
 
 
@@ -701,7 +766,7 @@ class Snippet(object):
 
 
     def list_placeholders(self):
-        return [placeholder.name for placeholder in PlaceholderFormatParser.parse(self.format_string)]
+        return [placeholder.name for placeholder in PlaceholderFormatParser.parse(self._format_string)]
 
     def list_reserved_placeholders(self):
         return self.config.get_reserved_placeholder_names()
@@ -749,6 +814,7 @@ class Snippet(object):
     arguments = property(_get_arguments, _set_arguments)
     verbose = property(_get_verbose, _set_verbose)
 
+
 def __main__():
     config = Config(app_name, [home_config_path, app_config_path])
     logger = config.logger
@@ -777,7 +843,7 @@ def __main__():
         $ snippet -f "hello <arg1>" snippet
         
         # Assigning multiple values and making use of presets
-        $ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<date_time>.log;" rhost=localhost github.com
+        $ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<datetime>.log;" rhost=localhost github.com
         
         # Using templates and reading arguments from a file
         $ snippet -t net/scan/nmap-ping rhost:hosts.txt
