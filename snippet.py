@@ -481,8 +481,9 @@ class PlaceholderValuePrintFormatter:
             else:
                 placeholder_names.pop(placeholder.name)
 
-            required = colorize("(required)", Fore.RED) if placeholder.required else colorize("(optional)", Fore.GREEN)
             if placeholder.name not in data_frame:
+                required = colorize("(required)", Fore.RED) \
+                    if placeholder.required else colorize("(optional)", Fore.GREEN)
                 # No value assigned.
                 lines.append("   {} {} = {}".format(
                     colorize(placeholder.name.rjust(placeholder_name_max_len), Fore.WHITE),
@@ -490,6 +491,8 @@ class PlaceholderValuePrintFormatter:
                     colorize("<not assigned>", Fore.LIGHTRED_EX)
                     if placeholder.required else colorize("<not assigned>", Fore.LIGHTGREEN_EX)))
             else:
+                required = colorize("(required)", Fore.GREEN) \
+                    if placeholder.required else colorize("(optional)", Fore.GREEN)
                 # Print list of assigned values.
                 values = list(set(data_frame[placeholder.name]))
                 for i in range(len(values)):
