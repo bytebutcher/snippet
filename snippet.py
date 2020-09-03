@@ -22,7 +22,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0x"
+app_version = "1.0y"
 
 # Configuration files
 # ===================
@@ -790,9 +790,10 @@ class Snippet(object):
         if self._get_verbose():
             self.config.logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
 
-    def create_or_edit_template(self, template_name):
+    def create_or_edit_template(self, template_name, format_string):
         home_template_path = os.path.join(home_config_path, "templates")
         home_template_file = os.path.join(home_template_path, template_name)
+
         if os.path.isfile(home_template_file):
             # Edit existing file in home path
             subprocess.call((self.config.editor, home_template_file))
@@ -807,9 +808,17 @@ class Snippet(object):
                 # If template exists in app path, do not edit here
                 # Instead make copy to home path and edit this file
                 shutil.copyfile(app_template_file, home_template_file)
-            subprocess.call((self.config.editor, home_template_file))
+
+            if format_string:
+                with open(home_template_file, 'w') as f:
+                    f.write(format_string)
+                self.config.logger.info("{}Successfully created template '{}'!".format(
+                    colorize(" INFO: ", Fore.GREEN), template_name))
+            else:
+                subprocess.call((self.config.editor, home_template_file))
+
         except:
-            raise Exception("Creating '{}' failed!".format(template_name))
+            raise Exception("Creating template '{}' failed!".format(template_name))
 
     def use_template(self, template_name):
         format_template_name, format_string = self.config.get_format_template(template_name)
@@ -992,7 +1001,7 @@ def __main__():
             snippet.verbose = True
 
         if arguments.edit:
-            snippet.create_or_edit_template(arguments.edit)
+            snippet.create_or_edit_template(arguments.edit, arguments.format_string)
             sys.exit(0)
 
         if arguments.list_codecs and arguments.list_templates:
