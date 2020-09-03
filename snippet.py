@@ -22,7 +22,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0w"
+app_version = "1.0x"
 
 # Configuration files
 # ===================
@@ -459,9 +459,14 @@ class Config(object):
         # Get templates from home or app directory.
         for format_template_file_path in self.format_template_paths:
             if os.path.exists(format_template_file_path):
+                exclude_extensions = ['.txt', '.md']
+                exclude_directories = ['.git']
                 for r, d, f in os.walk(format_template_file_path):
+                    d[:] = [dir for dir in d if dir not in exclude_directories]
                     relpath = r[len(format_template_file_path) + 1:]
                     for file in f:
+                        if list(filter(lambda x: file.lower().endswith(x), exclude_extensions)):
+                            continue
                         format_template_files.append(os.path.join(relpath, file))
 
         # Also consider files in the local directory which ends with .snippet.
