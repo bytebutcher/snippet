@@ -1,2 +1,0 @@
-#
-nmap -vvv -sS -p <rport,...=-> <rhost,...> -oA nmap-syn-<rhost,...>_ports-<rport,...>_<datetime>

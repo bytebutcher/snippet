@@ -1,2 +1,0 @@
-#
-httrack [<mode=--spider>] <protocol=https>://<rhost> -O <rhost>_<datetime>

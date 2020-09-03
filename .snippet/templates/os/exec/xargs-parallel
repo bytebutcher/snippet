@@ -1,1 +1,0 @@
-cat <input-file> | xargs --max-procs=<max_procs> -I CMD bash -c CMD
