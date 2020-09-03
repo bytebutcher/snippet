@@ -1,1 +1,2 @@
+#
 enum4linux -a <rhost> | tee enum4linux_<rhost>_<datetime>

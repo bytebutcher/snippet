@@ -21,7 +21,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0t"
+app_version = "1.0u"
 
 # Configuration files
 # ===================
@@ -237,7 +237,7 @@ class PlaceholderFormat:
             self.codecs = list(filter(None, codecs.split(":")))
             self.default = self.default[1:] if self.default else None # Remove the equal-sign at the beginning.
             self.required = required
-        except Exception as e:
+        except Exception:
             raise Exception("Transforming placeholders failed! Invalid format!")
 
     def _get_delimiter(self):
@@ -354,7 +354,7 @@ class Config(object):
                                 classname = str(to_camel_case(filename))
                                 try:
                                     codecs[filename] = getattr(__import__(filename), classname)()
-                                except Exception as e:
+                                except Exception:
                                     self.logger.warning("WARNING: Loading codec {} failed!".format(filename))
                     sys.path.pop()
 
@@ -429,7 +429,11 @@ class Config(object):
 
         try:
             with open(format_template_file) as f:
-                return format_template_name, os.sep.join(f.read().splitlines())
+                lines = []
+                for line in f.read().splitlines():
+                    if not line.startswith("#"):
+                        lines.append(line)
+                return format_template_name, os.sep.join(lines)
         except:
             raise Exception("Loading {} failed! Invalid template format!".format(format_template_name or "template"))
 

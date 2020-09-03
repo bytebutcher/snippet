@@ -1,1 +1,2 @@
+#
 nmap -vvv -sP <rhost,...> -oA nmap-ping_<rhost,...>_<datetime>

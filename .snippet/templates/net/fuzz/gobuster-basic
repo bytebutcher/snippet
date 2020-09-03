@@ -1,1 +1,2 @@
+#
 gobuster dir -u <protocol=https>://<rhost><path=/> -w <wordlist=/usr/share/wfuzz/wordlist/general/common.txt> [-x <extension>] -o gobuster-basic_<rhost>_<datetime>.txt
