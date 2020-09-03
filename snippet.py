@@ -487,7 +487,7 @@ class Config(object):
                 for line in f.read().splitlines():
                     if not line.startswith("#"):
                         lines.append(line)
-                return format_template_name, os.sep.join(lines)
+                return format_template_name, os.linesep.join(lines)
         except:
             raise Exception("Loading {} failed! Invalid template format!".format(format_template_name or "template"))
 
