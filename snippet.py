@@ -22,7 +22,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0v"
+app_version = "1.0w"
 
 # Configuration files
 # ===================
@@ -33,26 +33,43 @@ home_config_path = os.path.join(str(Path.home()), ".snippet")
 
 
 def colorize(string: str, color):
+    """ Little helper function to colorize a string. """
     return color + string + Style.RESET_ALL
 
 
 class FormatArgumentParser:
+    """
+    A argument may have the following format*:
+
+        ARGUMENTS = <PLACEHOLDER>=<VALUE> [<VALUE>...] <ARGUMENTS> | <PLACEHOLDER>:<FILE> <ARGUMENTS>
+
+        PLACEHOLDER = The name of the placeholder to which values should be assigned.
+        VALUE       = A list of characters.
+        FILE        = A relative or absolute filename which needs to exist.
+
+    *) optional parts are denoted with square brackets and parts which can be repeated are marked with three dots.
+    """
 
     @staticmethod
-    def parse(format_arguments: str):
-        # Accepted data set format:
-        #   PLACEHOLDER=VALUE | PLACEHOLDER:FILE [... PLACEHOLDER=VALUE | PLACEHOLDER:FILE]
+    def parse(format_arguments: str) -> 'Data':
+        """
+        Parses the arguments and adds them into a dict with placeholder names and a list of values.
+
+        :param format_arguments: the format arguments (e.g. "ARG1=a b ARG2=c d")
+        :return: a dict with placeholders and a list of values (e.g. {'ARG1': ['a', 'b'], 'ARG2': ['c', 'd'] }).
+        """
         result = Data()
-        for format_argument in FormatArgumentParser.__reformat_arguments(format_arguments):
-            for key, value in FormatArgumentParser.__parse(format_argument).items():
+        for format_argument in FormatArgumentParser._parse_arguments(format_arguments):
+            for key, value in FormatArgumentParser._parse_argument(format_argument).items():
                 result.append(key, value)
         return result
 
     @staticmethod
-    def __reformat_arguments(format_arguments: str) -> list:
+    def _parse_arguments(format_arguments: str) -> list:
         """
-        Reformat format arguments which were passed as single string but contain multiple placeholders with values
+        Parse arguments which were passed as single string but contain multiple placeholders with values
         while missing the necessary quotes to parse them correctly with shlex.
+
         :param format_arguments: the format arguments (e.g. "placeholder1=a b c placeholder2=d e f")
         :return: a reformatted list of format arguments (e.g. ["placeholder1=a b c", "placeholder2=d e f"])
         """
@@ -73,16 +90,28 @@ class FormatArgumentParser:
         return reformatted_arguments
 
     @staticmethod
-    def __parse(format_argument: str):
-        separator = FormatArgumentParser.__get_separator(format_argument)
+    def _parse_argument(format_argument: str) -> dict:
+        """
+        Transforms an argument into a dict with placeholder and a list of values:
+
+        :format: a argument (e.g. 'value', 'arg=value1 value2', 'arg:file')
+        :return: a dict with placeholders and a list of values (e.g. {'ARG': ['1', '2', '3']}).
+        """
+        separator = FormatArgumentParser._get_separator(format_argument)
         return {
-            "=": FormatArgumentParser.__parse_placeholder_value,
-            ":": FormatArgumentParser.__parse_placeholder_file,
-            "": FormatArgumentParser.__parse_value
+            "=": FormatArgumentParser._parse_placeholder_value,
+            ":": FormatArgumentParser._parse_placeholder_file,
+            "": FormatArgumentParser._parse_value
         }.get(separator)(format_argument, separator)
 
     @staticmethod
-    def __get_separator(format_argument: str):
+    def _get_separator(format_argument: str) -> str:
+        """
+        Returns the separator which is used to split placeholder name and value.
+
+        :format: a argument (e.g. 'value', 'arg=value1 value2', 'arg:file')
+        :return: the separator, either "=", ":" or "" when no separator was found.
+        """
         string_sep_pos = format_argument.find("=")
         file_sep_pos = format_argument.find(":")
         if (string_sep_pos <= 0 and file_sep_pos <= 0):
@@ -96,7 +125,7 @@ class FormatArgumentParser:
             return "=" if string_sep_pos > 0 else ":"
 
     @staticmethod
-    def __parse_placeholder_value(placeholder_value: str, sep: str):
+    def _parse_placeholder_value(placeholder_value: str, sep: str) -> dict:
         try:
             placeholder, value = placeholder_value.split(sep)
             return {placeholder: value}
@@ -104,7 +133,7 @@ class FormatArgumentParser:
             raise Exception("Parsing '{}' failed! Unknown error!".format(placeholder_value))
 
     @staticmethod
-    def __parse_placeholder_file(placeholder_file: str, sep: str):
+    def _parse_placeholder_file(placeholder_file: str, sep: str) -> dict:
         placeholder, file = placeholder_file.split(sep)
         if not os.path.isfile(file):
             raise Exception("Parsing '{}' failed! File not found!".format(placeholder_file))
@@ -119,14 +148,15 @@ class FormatArgumentParser:
             raise Exception("Parsing '{}' failed! Invalid file format!".format(placeholder_file))
 
     @staticmethod
-    def __parse_value(value: str, sep: str):
+    def _parse_value(value: str, sep: str) -> dict:
         return {"": value}
 
 
 class PlaceholderFormatParser:
+    """ Parses a format string into a list of placeholders. """
 
     @staticmethod
-    def parse(format_string, parse_optional=True):
+    def parse(format_string):
 
         def _parse_parts(parts, i=0):
             result = []
@@ -146,29 +176,34 @@ class PlaceholderFormatParser:
                         for placeholder_format in \
                             re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>", part or "")))
 
-        if parse_optional:
-            return _parse_parts(ParenthesesParser.parse(format_string))
-        else:
-            return _parse_part(format_string, False)
+        return _parse_parts(ParenthesesParser.parse(format_string))
 
 
 class ParenthesesParser:
+    """
+    Parses a string with parentheses into a list.
+
+    Example:
+
+        "123[456[787]654]321" => ['123', ['456', ['787'], '654',] '321']
+
+    """
 
     @staticmethod
-    def parse(format_string):
+    def parse(format_string, opener="[", closer="]") -> list:
 
         def _parse_parentheses(format_string, i=0, balance=0):
             components = []
             start = i
             while i < len(format_string):
                 c = format_string[i]
-                if c == "[":
+                if c == opener:
                     if i > 0:
                         components.append(format_string[start:i])
                     i, result = _parse_parentheses(format_string, i + 1, balance + 1)
                     components.append(result)
                     start = i + 1
-                elif c == "]":
+                elif c == closer:
                     balance = balance - 1
                     components.append(format_string[start:i])
                     if balance < 0:
@@ -183,15 +218,28 @@ class ParenthesesParser:
 
 
 class FormatStringParser:
+    """
+    Parses a format string and removes placeholders inside square brackets which do not have a value assigned.
+
+    Examples:
+
+        FORMAT_STRING = 'A <arg1> B'
+        ARGUMENTS     = { 'arg1': ['123', '456] }
+        RESULT        = 'A <arg> B'
+
+        FORMAT_STRING = 'A[ <arg1> ]B'
+        ARGUMENTS     = {}
+        RESULT        = 'AB'
+
+    """
 
     @staticmethod
-    def parse(format_string, parameters):
+    def parse(format_string, arguments) -> str:
         parentheses = ParenthesesParser.parse(format_string)
         if not parentheses:
+            # No optional arguments found in format string.
             return format_string
-        essentials = FormatStringParser._remove_optionals(parentheses, parameters)
-        if not essentials:
-            return format_string
+        essentials = FormatStringParser._remove_optionals(parentheses, arguments)
         return "".join(FormatStringParser._flatten_list(essentials))
 
     @staticmethod
@@ -199,7 +247,7 @@ class FormatStringParser:
         result = []
         for part in parts:
             if isinstance(part, str):
-                placeholders = PlaceholderFormatParser.parse(part, parse_optional=False)
+                placeholders = PlaceholderFormatParser.parse(part)
                 for placeholder in placeholders:
                     if not placeholder.name in arguments and not placeholder.default:
                         return []
@@ -287,6 +335,7 @@ class Data(defaultdict):
 
 
 class Codec(object):
+    """ Abstract codec class used for individual codecs. """
 
     def __init__(self, author, dependencies):
         self.author = author
@@ -307,12 +356,12 @@ class Config(object):
         self.paths = paths
         self.format_template_paths = [os.path.join(path, "templates") for path in paths]
         self.codec_paths = [os.path.join(path, "codecs") for path in paths]
-        self.logger = self.__init_logger(app_name, "%(msg)s")
-        self.profile = self.__load_profile()
-        self.codecs = self.__load_codecs()
+        self.logger = self._init_logger(app_name, "%(msg)s")
+        self.profile = self._load_profile()
+        self.codecs = self._load_codecs()
         self._reserved_placeholder_values = []
 
-    def __init_logger(self, app_id, log_format="%(module)s: %(lineno)d: %(msg)s"):
+    def _init_logger(self, app_id, log_format="%(module)s: %(lineno)d: %(msg)s"):
         logger = logging.getLogger(app_id)
         logging.root.setLevel(logging.INFO)
         hdlr = logging.StreamHandler(sys.stderr)
@@ -320,7 +369,7 @@ class Config(object):
         logger.addHandler(hdlr)
         return logger
 
-    def __load_profile(self):
+    def _load_profile(self):
         for profile_path in self.paths:
             if os.path.exists(profile_path):
                 try:
@@ -334,9 +383,9 @@ class Config(object):
                     pass
         return None
 
-    def __load_codecs(self):
+    def _load_codecs(self):
 
-        def to_camel_case(word):
+        def _to_camel_case(word):
             return ''.join(x.capitalize() or '_' for x in word.split('_'))
 
         codecs = {}
@@ -356,7 +405,7 @@ class Config(object):
                         for file in f:
                             filename, ext = os.path.splitext(file)
                             if ext == ".py":
-                                classname = str(to_camel_case(filename))
+                                classname = str(_to_camel_case(filename))
                                 try:
                                     codecs[filename] = getattr(__import__(filename), classname)()
                                 except Exception:
@@ -494,7 +543,7 @@ class PlaceholderValuePrintFormatter:
                 required = colorize("(required)", Fore.GREEN) \
                     if placeholder.required else colorize("(optional)", Fore.GREEN)
                 # Print list of assigned values.
-                values = list(set(data_frame[placeholder.name]))
+                values = list(OrderedDict.fromkeys(data_frame[placeholder.name]))
                 for i in range(len(values)):
                     placeholder_name = placeholder.name if i == 0 else len(placeholder.name) * " "
                     value = values[i]
@@ -681,10 +730,11 @@ class Snippet(object):
         return self._format_string
 
     def _set_format_string(self, format_string):
-        self._log_info(colorize("Format:", Fore.YELLOW))
-        for line in format_string.split(os.linesep):
-            self._log_info(colorize("   {}".format(line), Fore.WHITE))
-        self._format_string = format_string
+        if format_string:
+            self._log_info(colorize("Format:", Fore.YELLOW))
+            for line in format_string.split(os.linesep):
+                self._log_info(colorize("   {}".format(line), Fore.WHITE))
+            self._format_string = format_string
 
     def _set_arguments(self, data_values):
         placeholder = None
@@ -787,9 +837,11 @@ class Snippet(object):
 
 
     def list_placeholders(self):
+        """ Returns all the placeholders found in the format string. """
         return [placeholder.name for placeholder in PlaceholderFormatParser.parse(self._format_string)]
 
     def list_reserved_placeholders(self):
+        """ Returns the list of reserved placeholders (aka Presets) e.g. 'datetime', 'date', ... """
         return self.config.get_reserved_placeholder_names()
 
     def list_unset_placeholders(self):
@@ -802,6 +854,20 @@ class Snippet(object):
         return unset_placeholders
 
     def import_environment(self, mode=ImportEnvironmentMode.default):
+        """
+        Import values found in environment variables which name match the placeholder names found in the format string.
+
+        There are 4 modes how environment variables are going to be processed:
+
+            default: An environment variable matching a placeholder is only loaded when no value is assigned yet.
+             append: An environment variable matching a placeholder is appended to the current list of assigned values.
+            replace: An environment variable matching a placeholder replaces the current list of assigned values.
+             ignore: No environment variables are imported.
+        """
+
+        if mode == Snippet.ImportEnvironmentMode.ignore:
+            return
+
         placeholders = self.list_placeholders()
         reserved_placeholders = self.config.get_reserved_placeholder_values().keys()
 
@@ -809,24 +875,23 @@ class Snippet(object):
             if data and placeholder not in reserved_placeholders:
                 self.data.append(placeholder, data)
 
-        if mode != Snippet.ImportEnvironmentMode.ignore:
-            for placeholder in placeholders:
-                # Do not load upper case environment variables to prevent users from getting into the habit of
-                # defining upper case environment variables and messing up their environment.
-                # In addition loading upper case environment variables may result in loading unwanted/pre-defined
-                # values.
-                data = os.environ.get(placeholder) # or os.environ.get(placeholder.upper())
-                if data:
-                    if mode == Snippet.ImportEnvironmentMode.default:
-                        # Only set environment data when not already defined
-                        if placeholder not in self.data:
-                            _import_environment(placeholder, data)
-                    elif mode == Snippet.ImportEnvironmentMode.append:
+        for placeholder in placeholders:
+            # Do not load upper case environment variables to prevent users from getting into the habit of
+            # defining upper case environment variables and messing up their environment.
+            # In addition loading upper case environment variables may result in loading unwanted/pre-defined
+            # values.
+            data = os.environ.get(placeholder) # or os.environ.get(placeholder.upper())
+            if data:
+                if mode == Snippet.ImportEnvironmentMode.default:
+                    # Only set environment data when not already defined
+                    if placeholder not in self.data:
                         _import_environment(placeholder, data)
-                    elif mode == Snippet.ImportEnvironmentMode.replace:
-                        if placeholder not in reserved_placeholders:
-                            self.data[placeholder] = []
-                            _import_environment(placeholder, data)
+                elif mode == Snippet.ImportEnvironmentMode.append:
+                    _import_environment(placeholder, data)
+                elif mode == Snippet.ImportEnvironmentMode.replace:
+                    if placeholder not in reserved_placeholders:
+                        self.data[placeholder] = []
+                        _import_environment(placeholder, data)
 
     def build(self):
         return DataBuilder(self._get_format_string(), self.data, self.codec_formats, self.config).build()
@@ -963,7 +1028,7 @@ def __main__():
             snippet.format_string = sys.stdin.readline().rstrip()
 
         if not snippet.format_string:
-            snippet.format_string = os.environ.get("FORMAT_STRING") or ""
+            snippet.format_string = os.environ.get("FORMAT_STRING")
 
         if arguments.data_values:
             snippet.arguments = arguments.data_values
@@ -975,7 +1040,7 @@ def __main__():
             sys.exit(0)
 
         if not snippet.format_string:
-            parser.print_usage()
+            parser.print_usage(file=sys.stderr)
             sys.exit(1)
 
         for lines in snippet.build():
