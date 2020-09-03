@@ -3,24 +3,6 @@
 ```snippet``` allows you to create, view and use snippets on the command-line.
 
 ## Usage
-![Snippet Demo](snippet.gif)
-
-## Setup
-
-```
-git clone https://github.com/bytebutcher/snippet
-cd snippet
-python3 -m venv venv
-./venv/bin/python3 install -r requirements.txt
-sudo ln -s $PWD/snippet /usr/bin/snippet
-```
-
-To enable bash-completion you might add following line to your .bashrc:
-```bash
-eval "$(register-python-argcomplete3 snippet)"
-```
-
-## Examples
 
 ```
 # Add a new snippet to the database
@@ -74,6 +56,21 @@ python3 -m http.server 8000
 # Using codecs
 $ snippet -f "tar -czvf <archive:squote> <file:squote...>" /path/to/foo.tar file=foo bar
 tar -czvf '/path/to/foo.tar.gz' 'foo' 'bar'
+```
+
+## Setup
+
+```
+git clone https://github.com/bytebutcher/snippet
+cd snippet
+python3 -m venv venv
+./venv/bin/python3 install -r requirements.txt
+sudo ln -s $PWD/snippet /usr/bin/snippet
+```
+
+To enable bash-completion you might add following line to your .bashrc:
+```bash
+eval "$(register-python-argcomplete3 snippet)"
 ```
 
 ## Advanced usage
