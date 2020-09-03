@@ -977,7 +977,7 @@ def __main__():
 
         for lines in snippet.build():
             # Handle format strings with line separators
-            for line in lines.split(os.sep):
+            for line in lines.split(os.linesep):
                 print(line)
 
         sys.exit(0)
