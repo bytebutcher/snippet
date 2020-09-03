@@ -16,12 +16,13 @@ import traceback
 import re
 import itertools
 import shlex
-from iterfzf import iterfzf
 
+from colorama import Fore, Style
+from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0u"
+app_version = "1.0v"
 
 # Configuration files
 # ===================
@@ -29,6 +30,10 @@ app_version = "1.0u"
 # inside the home-directory.
 app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".snippet")
 home_config_path = os.path.join(str(Path.home()), ".snippet")
+
+
+def colorize(string: str, color):
+    return color + string + Style.RESET_ALL
 
 
 class FormatArgumentParser:
@@ -463,11 +468,11 @@ class PlaceholderValuePrintFormatter:
             # No placeholders in format string.
             return lines
 
-        # Print list of placeholders.
         placeholder_names = OrderedDict.fromkeys([placeholder.name for placeholder in placeholders])
-        lines.append("Placeholders = {}".format(",".join(placeholder_names)))
+        placeholder_name_max_len = len(max(placeholder_names, key=len))
 
         # Print assigned values for each placeholder.
+        lines.append(colorize("Placeholders:", Fore.YELLOW))
         for placeholder in placeholders:
 
             # Only print placeholder name once.
@@ -476,17 +481,24 @@ class PlaceholderValuePrintFormatter:
             else:
                 placeholder_names.pop(placeholder.name)
 
-            required = "required" if placeholder.required else "optional"
+            required = colorize("(required)", Fore.RED) if placeholder.required else colorize("(optional)", Fore.GREEN)
             if placeholder.name not in data_frame:
                 # No value assigned.
-                lines.append("   {} ({}) = <not assigned>".format(placeholder.name, required))
+                lines.append("   {} {} = {}".format(
+                    colorize(placeholder.name.rjust(placeholder_name_max_len), Fore.WHITE),
+                    required,
+                    colorize("<not assigned>", Fore.LIGHTRED_EX)
+                    if placeholder.required else colorize("<not assigned>", Fore.LIGHTGREEN_EX)))
             else:
                 # Print list of assigned values.
                 values = list(set(data_frame[placeholder.name]))
                 for i in range(len(values)):
                     placeholder_name = placeholder.name if i == 0 else len(placeholder.name) * " "
                     value = values[i]
-                    lines.append("   {} ({}) {} {}".format(placeholder_name, required, "=" if i == 0 else "|", value))
+                    lines.append("   {} {} {} {}".format(
+                        colorize(placeholder_name.rjust(placeholder_name_max_len), Fore.WHITE),
+                        required, "=" if i == 0 else "|", value))
+                    if i == 0: required = len("(optional)") * " "  # Show (required/optional) only for the first value.
 
         return lines
 
@@ -618,7 +630,7 @@ class DataBuilder(object):
             if self.config.verbose:
                 # Print all placeholders and the assigned values (verbose).
                 for line in PlaceholderValuePrintFormatter.build(self._format_string_original, data_frame):
-                    self.config.logger.info(" INFO: {}".format(line))
+                    self.config.logger.info(colorize(" INFO: ", Fore.GREEN) + line)
 
             # Get all required placeholders which are not assigned. Also consider repeatables (see transform_data).
             unset_placeholders = OrderedDict.fromkeys([
@@ -666,7 +678,9 @@ class Snippet(object):
         return self._format_string
 
     def _set_format_string(self, format_string):
-        self._log_info("Format = {}".format(format_string))
+        self._log_info(colorize("Format:", Fore.YELLOW))
+        for line in format_string.split(os.sep):
+            self._log_info(colorize("   {}".format(line), Fore.WHITE))
         self._format_string = format_string
 
     def _set_arguments(self, data_values):
@@ -716,7 +730,7 @@ class Snippet(object):
 
     def _log_info(self, msg):
         if self._get_verbose():
-            self.config.logger.info(" INFO: {}".format(msg))
+            self.config.logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
 
     def create_or_edit_template(self, template_name):
         home_template_path = os.path.join(home_config_path, "templates")
@@ -741,7 +755,8 @@ class Snippet(object):
 
     def use_template(self, template_name):
         format_template_name, format_string = self.config.get_format_template(template_name)
-        self._log_info("Template = {}".format(format_template_name))
+        self._log_info(colorize("Template:", Fore.YELLOW))
+        self._log_info(colorize("   {}".format(format_template_name), Fore.WHITE))
         self.format_string = format_string
 
     def list_templates(self, filter_string=None):
@@ -960,12 +975,14 @@ def __main__():
             parser.print_usage()
             sys.exit(1)
 
-        for line in snippet.build():
-            print(line)
+        for lines in snippet.build():
+            # Handle format strings with line separators
+            for line in lines.split(os.sep):
+                print(line)
 
         sys.exit(0)
     except Exception as e:
-        logger.error("ERROR: {}".format(e))
+        logger.error(colorize("ERROR: ", Fore.RED) + str(e))
         if arguments.debug:
             traceback.print_exc()
         sys.exit(1)
