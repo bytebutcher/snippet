@@ -1,2 +1,1 @@
-nmap -vvv -sS -p- <rhost,...> -oA nmap-syn-all_<rhost,...>_<datetime>
 nmap -vvv -sUV --version-intensity 0 --top-ports 1000 <rhost,...> -oA nmap-udp-top_<rhost,...>_<datetime>

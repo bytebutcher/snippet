@@ -46,8 +46,8 @@ eval "$(register-python-argcomplete3 snippet)"
    1. [Using on-the-fly transformation](#Using-the---format-string-argument)
    2. [Using input from a pipe](#Using-input-from-a-pipe)
    3. [Using templates](#Using-templates)
-   4. [Using optionals](#Using-optionals)
-   5. [Using defaults](#Using-defaults)
+   4. [Using defaults](#Using-defaults)
+   5. [Using optionals](#Using-optionals)
    6. [Using codecs](#Using-codecs)
 4. [Executing commands](#Executing-commands)
 5. [See also](#See-also)
@@ -230,25 +230,6 @@ $ snippet -f "<arg> <arg:b64:b64>" "hello snippet"
 hello snippet YUdWc2JHOGdjbVYyWVcxdw==
 ```
 
-#### Using optional arguments
-
-```snippet``` supports specifying optional parts in the string format by surrounding them with 
-square-brackets:
-```
-$ snippet -f "<arg> [<arg2>]" hello snippet
-hello snippet
-$ snippet -f "<arg> [<arg2>]" hello
-hello
-```
-
-If you need these characters to be part of the string format you need to
-escape them accordingly:
-
-```
-$ snippet -f "\[<arg>\]" hello
-[hello]
-```
-
 #### Using defaults
 
 ```snippet``` supports specifying default values for your placeholders:
@@ -256,6 +237,29 @@ $ snippet -f "\[<arg>\]" hello
 ```
 $ snippet -f "<arg1> <arg2=default>" hello
 hello default
+```
+
+#### Using optionals
+
+```snippet``` supports specifying optional parts in the string format by surrounding them with 
+square-brackets:
+```
+$ snippet -f "<arg1> [<arg2>]" hello snippet
+hello snippet
+$ snippet -f "<arg1> [<arg2>]" hello
+hello
+$ snippet -f "<arg> [my <arg2=snippet>]" hello
+hello my snippet
+$ snippet -f "<arg> [my <arg2=snippet>]" hello arg2=
+hello
+```
+
+If you need square-brackets to be part of the string format you need to
+escape them accordingly:
+
+```
+$ snippet -f "\[<arg>\]" hello
+[hello]
 ```
 
 ### Executing commands

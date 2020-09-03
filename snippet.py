@@ -21,7 +21,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0s"
+app_version = "1.0t"
 
 # Configuration files
 # ===================
@@ -616,13 +616,12 @@ class DataBuilder(object):
                 for line in PlaceholderValuePrintFormatter.build(self._format_string_original, data_frame):
                     self.config.logger.info(" INFO: {}".format(line))
 
-            # Note: When placeholder is repeatable we need to append "..." to the name.
-            #       See transform_data method for more information regarding that matter.
-            placeholder_names = [placeholder.name for placeholder in self.get_placeholders() if placeholder.required]
-            unset_placeholders = [
-                placeholder_name for placeholder_name in placeholder_names
-                                  if placeholder_name not in data_frame.keys() and
-                                     placeholder_name + "..." not in data_frame.keys()]
+            # Get all required placeholders which are not assigned. Also consider repeatables (see transform_data).
+            unset_placeholders = OrderedDict.fromkeys([
+                placeholder.name for placeholder in self.get_placeholders()
+                    if placeholder.name not in data_frame.keys() and
+                       placeholder.required and
+                       placeholder.name + "..." not in data_frame.keys()])
             if unset_placeholders:
                 raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
