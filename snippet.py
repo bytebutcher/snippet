@@ -240,6 +240,9 @@ class FormatStringParser:
             # No optional arguments found in format string.
             return format_string
         essentials = FormatStringParser._remove_optionals(parentheses, arguments)
+        if not essentials:
+            # Not all essential arguments are set.
+            return format_string
         return "".join(FormatStringParser._flatten_list(essentials))
 
     @staticmethod
@@ -975,7 +978,7 @@ def __main__():
                         dest='template_name',
                         help="The template to use as format string.") \
         .completer = argparse_template_completer
-    parser.add_argument('-l', '--list-templates', action="store_true",
+    parser.add_argument('--list-templates', action="store_true",
                         dest='list_templates',
                         help="Lists all available templates.")
     parser.add_argument('--list-codecs', action="store_true",

@@ -2,23 +2,8 @@
 
 ```snippet``` allows you to create, view and use snippets on the command-line.
 
-## Example
-
-```
-# To view a snippet:
-$ snippet -t archive/extract_tar -v
-tar -xvf <archive>
-
-# To get the prefilled snippet:
-$ snippet -t archive/extract_tar '/path/to/foo.tar'
-tar -xvf /path/to/foo.tar
-
-# To add a new snippet:
-$ snippet -e archive/extract_tgz -f 'tar -xzvf <archive>'
-
-# To interactively search snippets which include the term "extract":
-$ snippet -t extract -v
-```
+## Usage
+![Snippet Demo](snippet.gif)
 
 ## Setup
 
@@ -35,70 +20,78 @@ To enable bash-completion you might add following line to your .bashrc:
 eval "$(register-python-argcomplete3 snippet)"
 ```
 
-## Usage
+## Examples
 
-1. [Overview](#Overview)
-2. [Assigning data to placeholders](#Assigning-data-to-placeholders)
+```
+# Add a new snippet to the database
+$ snippet -e archive/extract-tgz -f 'tar -xzvf <archive>'
+
+# Edit a snippet (will open vim)
+$ snippet -e archive/extract-tgz
+
+# View a snippet
+$ snippet -t archive/extract-tgz -v
+tar -xvf <archive>
+
+# Search a snippet which include the term "extract" (will open fzf)
+$ snippet -t extract -v
+
+# Fill snippet with a value
+$ snippet -t archive/extract-tgz /path/to/foo.tar.gz
+tar -xvf /path/to/foo.tar.gz
+
+# Fill snippet with multiple values
+$ snippet -t archive/extract-tgz /path/to/foo.tar.gz /path/to/bar.tar.gz
+tar -xvf /path/to/foo.tar.gz
+tar -xvf /path/to/bar.tar.gz
+
+# Fill snippet with multiple values while using repeatable placeholders (e.g. <file...>)
+$ snippet -f "tar -czvf <archive> <file...>" /path/to/foo.tar file=foo bar
+tar -czvf /path/to/foo.tar.gz foo bar
+
+# Using presets (e.g. '<datetime>' to include current datetime)
+$ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file=foo bar
+tar -czvf 20770413000000.tar.gz foo bar
+
+# Import values from file
+$ cat <<EOF > files.txt
+foo
+bar
+EOF
+$ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file:files.txt
+tar -czvf 20770413000000.tar.gz foo bar
+
+# Using optionals
+$ snippet -f "python3 -m http.server[ --bind<lhost>][ <lport>]"
+python3 -m http.server
+$ snippet -f "python3 -m http.server[ --bind<lhost>][ <lport>]" lport=4444
+python3 -m http.server 4444
+
+# Using defaults
+$ snippet -f "python3 -m http.server[ --bind<lhost>] <lport=8000>"
+python3 -m http.server 8000
+
+# Using codecs
+$ snippet -f "tar -czvf <archive:squote> <file:squote...>" /path/to/foo.tar file=foo bar
+tar -czvf '/path/to/foo.tar.gz' 'foo' 'bar'
+```
+
+## Advanced usage
+
+1. [Assigning data to placeholders](#Assigning-data-to-placeholders)
    1. [Using positional arguments](#Using-positional-arguments)
    2. [Using environment variables](#Using-environment-variables)
    3. [Using presets](#Using-presets)
-3. [Using string formats](#Using-string-formats)
+2. [Using string formats](#Using-string-formats)
    1. [Using on-the-fly transformation](#Using-the---format-string-argument)
    2. [Using input from a pipe](#Using-input-from-a-pipe)
    3. [Using templates](#Using-templates)
    4. [Using defaults](#Using-defaults)
    5. [Using optionals](#Using-optionals)
    6. [Using codecs](#Using-codecs)
-4. [Executing commands](#Executing-commands)
-5. [See also](#See-also)
+3. [Executing commands](#Executing-commands)
+4. [See also](#See-also)
 
-### Overview
-
-The following overview shows various examples of how ```snippet``` can be used:
-```
-# Adding or editing a snippet (will open vim)
-$ snippet -e example
-hello, <arg1>!
-
-# Using arguments
-$ snippet -t example world
-hello, world!
-
-# Using on-the-fly transformation 
-$ snippet -f "hello, <arg1>!" world
-hello, world!
-
-# Using presets
-$ snippet -f "hello, <arg>! It's <datetime>!" world
-hello, world! It's 20770413000000!
-
-# Using files
-$ cat <<EOF > input.txt
-world
-universe
-EOF
-$ snippet -f "hello, <arg>!" arg:input.txt
-hello, world!
-hello, universe!
-
-# Using repeatables
-$ snippet -f "hello, <arg...>" arg:input.txt
-hello, world universe
-
-# Using optionals
-$ snippet -f "hello[, <arg>]"
-hello
-$ snippet -f "hello[, <arg>]" world
-hello, world!
-
-# Using defaults
-$ snippet -f "hello, <arg=world>!"
-hello, world!
-
-# Using codecs
-$ snippet -f "echo 'hello <arg1>! (<arg1:b64>)';" world
-echo 'hello, world! (cmV2YW1w)';
-```
 
 ### Assigning data to placeholders
 To assign data to a placeholder you have several options:
@@ -114,7 +107,7 @@ echo 'hello snippet';
 To assign multiple values to a specific placeholder you need to explicitly declare the placeholder to which the
 value should be assigned to:
 ```
-$ snippet -f "echo 'hello <arg1>';" arg1=snippet world
+$ snippet -f "echo '<arg1> <arg2>';" hello arg2=snippet world
 echo 'hello snippet';
 echo 'hello world';
 ```
@@ -203,8 +196,11 @@ $ snippet -t example.snippet world!
 
 2. Create a template using the ```-e | --edit``` argument:
 ```
-# The following command will open vim
+# Create a template called example with the specified string format
+$ snippet -e example -f "echo 'hello, <arg>!'"
+# Open vim to edit or add a new template
 $ snippet -e example world!
+# Use the template
 $ snippet -t example world!
 ```
 
@@ -214,7 +210,7 @@ template names.
 In addition the ```-t | --template``` argument will open an interactive search prompt 
 when the specified template name was not found.
 
-To list all available templates you can use the ```-l | --list-templates```
+To list all available templates you can use the ```--list-templates```
 parameter.
 
 #### Using codecs
