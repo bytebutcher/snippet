@@ -679,7 +679,7 @@ class Snippet(object):
 
     def _set_format_string(self, format_string):
         self._log_info(colorize("Format:", Fore.YELLOW))
-        for line in format_string.split(os.sep):
+        for line in format_string.split(os.linesep):
             self._log_info(colorize("   {}".format(line), Fore.WHITE))
         self._format_string = format_string
 
