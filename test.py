@@ -20,6 +20,15 @@ class TestSnippet(unittest.TestCase):
     def test_simple_placeholders(self):
         self.assertEqual(new_snippet("abc <arg1> <arg2> def", ["arg1=test", "arg2=tset"]), ["abc test tset def"])
 
+    def test_uppercase_placeholder_name_in_argument(self):
+        self.assertEqual(new_snippet("<arg1>", ["ARG1=test"]), ["test"])
+
+    def test_uppercase_placeholder_name_in_format_string(self):
+        self.assertEqual(new_snippet("<ARG1>", ["arg1=test"]), ["test"])
+
+    def test_uppercase_placeholder_name_in_format_string_argument(self):
+        self.assertEqual(new_snippet("<ARG1>", ["ARG1=test"]), ["test"])
+
     def test_simple_placeholder_file_test(self):
         self.assertEqual(new_snippet("abc <arg1> <arg2> def", ["arg1=test", "arg2:test/data.txt"]), [
             "abc test 1234567 def", "abc test QWERTYU def", "abc test  a b c def"])
@@ -86,6 +95,49 @@ class TestSnippet(unittest.TestCase):
         ])
         self.assertEqual(new_snippet("<arg1> [<arg2=test> <arg3>]", ["arg1=123"]), [
             "123 "
+        ])
+
+    def test_parse_big_single_argument(self):
+        self.assertEqual(
+            new_snippet("<arg1>", ["arg1=a b arg2=c d"]),
+            ["a b arg2=c d"]
+        )
+
+    def test_parse_big_single_argument_two(self):
+        self.assertEqual(
+            new_snippet("<arg1>", ["a b arg2=c d"]),
+            ["a b arg2=c d"]
+        )
+
+    def test_escaped_square_bracket_in_format_string(self):
+        self.assertEqual(new_snippet("\[General\]", []), [
+            "[General]"
+        ])
+
+    def test_escaped_angle_bracket_in_format_string(self):
+        self.assertEqual(new_snippet("\<html\>", []), [
+            "<html>"
+        ])
+
+    def test_angle_bracket_in_argument(self):
+        # Value of arg1 should not be replaced with value of arg3
+        self.assertEqual(new_snippet("123 <arg1> 456 <arg3>", ["arg1=<arg3>", "arg3=789"]), [
+            "123 <arg3> 456 789"
+        ])
+
+    def test_arguments_quote(self):
+        self.assertEqual(new_snippet("<arg1>", ['arg1="']), [
+            '"'
+        ])
+
+    def test_argument_escaped_quote(self):
+        self.assertEqual(new_snippet("<arg1>", ['arg1=\"']), [
+            '\"'
+        ])
+
+    def test_argument_escaped_angle_bracket(self):
+        self.assertEqual(new_snippet("<arg1>", ['arg1=\<html\>']), [
+            '\<html\>'
         ])
 
 

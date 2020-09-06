@@ -22,7 +22,7 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0y"
+app_version = "1.0z"
 
 # Configuration files
 # ===================
@@ -35,6 +35,17 @@ home_config_path = os.path.join(str(Path.home()), ".snippet")
 def colorize(string: str, color):
     """ Little helper function to colorize a string. """
     return color + string + Style.RESET_ALL
+
+
+class EscapedBracketCodec:
+
+    @staticmethod
+    def encode(str, opener, closer):
+        return str.replace('\\' + opener, chr(14)).replace('\\' + closer, chr(15))
+
+    @staticmethod
+    def decode(str, opener, closer):
+        return str.replace(chr(14), '\\' + opener).replace(chr(15), '\\' + closer)
 
 
 class FormatArgumentParser:
@@ -51,92 +62,30 @@ class FormatArgumentParser:
     """
 
     @staticmethod
-    def parse(format_arguments: str) -> 'Data':
+    def parse(format_argument: str) -> dict:
         """
-        Parses the arguments and adds them into a dict with placeholder names and a list of values.
+        Parses the argument and adds it into a dict with it's placeholder name and the associated values.
 
-        :param format_arguments: the format arguments (e.g. "ARG1=a b ARG2=c d")
-        :return: a dict with placeholders and a list of values (e.g. {'ARG1': ['a', 'b'], 'ARG2': ['c', 'd'] }).
+        :param format_argument: the format arguments (e.g. "a b", "ARG1=a b", "ARG2:test.txt")
+        :return: a dict with placeholders and a list of values (e.g. {'': ['a b']}, {'ARG1': ['a b']},
+                 {'ARG2': ['line1', 'line2'] }).
         """
-        result = Data()
-        for format_argument in FormatArgumentParser._parse_arguments(format_arguments):
-            for key, value in FormatArgumentParser._parse_argument(format_argument).items():
-                result.append(key, value)
-        return result
-
-    @staticmethod
-    def _parse_arguments(format_arguments: str) -> list:
-        """
-        Parse arguments which were passed as single string but contain multiple placeholders with values
-        while missing the necessary quotes to parse them correctly with shlex.
-
-        :param format_arguments: the format arguments (e.g. "placeholder1=a b c placeholder2=d e f")
-        :return: a reformatted list of format arguments (e.g. ["placeholder1=a b c", "placeholder2=d e f"])
-        """
-        reformatted_arguments = []
-        reformatted_argument = []
-        is_initialized = False
-        for format_argument in shlex.split(format_arguments):
-            if "=" in format_argument or ":" in format_argument:
-                if not is_initialized:
-                    is_initialized = True
-                    reformatted_argument.append(format_argument)
-                else:
-                    reformatted_arguments.append(" ".join(reformatted_argument))
-                    reformatted_argument = [format_argument]
-            else:
-                reformatted_argument.append(format_argument)
-        reformatted_arguments.append(" ".join(reformatted_argument))
-        return reformatted_arguments
-
-    @staticmethod
-    def _parse_argument(format_argument: str) -> dict:
-        """
-        Transforms an argument into a dict with placeholder and a list of values:
-
-        :format: a argument (e.g. 'value', 'arg=value1 value2', 'arg:file')
-        :return: a dict with placeholders and a list of values (e.g. {'ARG': ['1', '2', '3']}).
-        """
-        separator = FormatArgumentParser._get_separator(format_argument)
+        placeholder, separator, value = re.findall(r"(?:(\w+)([=:]))?(.+)", format_argument).pop()
         return {
             "=": FormatArgumentParser._parse_placeholder_value,
             ":": FormatArgumentParser._parse_placeholder_file,
             "": FormatArgumentParser._parse_value
-        }.get(separator)(format_argument, separator)
+        }.get(separator)(placeholder, value)
 
     @staticmethod
-    def _get_separator(format_argument: str) -> str:
-        """
-        Returns the separator which is used to split placeholder name and value.
-
-        :format: a argument (e.g. 'value', 'arg=value1 value2', 'arg:file')
-        :return: the separator, either "=", ":" or "" when no separator was found.
-        """
-        string_sep_pos = format_argument.find("=")
-        file_sep_pos = format_argument.find(":")
-        if (string_sep_pos <= 0 and file_sep_pos <= 0):
-            # When no separator is found, return an empty string
-            return ""
-        elif (string_sep_pos > 0 and file_sep_pos > 0):
-            # When both separators are found, return the first one found in the format argument
-            return "=" if string_sep_pos < file_sep_pos else ":"
-        else:
-            # When one separator is found, return it
-            return "=" if string_sep_pos > 0 else ":"
+    def _parse_placeholder_value(placeholder: str, value: str) -> dict:
+        return {placeholder: value}
 
     @staticmethod
-    def _parse_placeholder_value(placeholder_value: str, sep: str) -> dict:
-        try:
-            placeholder, value = placeholder_value.split(sep)
-            return {placeholder: value}
-        except:
-            raise Exception("Parsing '{}' failed! Unknown error!".format(placeholder_value))
-
-    @staticmethod
-    def _parse_placeholder_file(placeholder_file: str, sep: str) -> dict:
-        placeholder, file = placeholder_file.split(sep)
+    def _parse_placeholder_file(placeholder: str, file: str) -> dict:
         if not os.path.isfile(file):
-            raise Exception("Parsing '{}' failed! File not found!".format(placeholder_file))
+            raise Exception(
+                "Parsing placeholder '{}' failed! The file '{}' was not found!".format(placeholder, file))
 
         try:
             data = Data()
@@ -144,11 +93,12 @@ class FormatArgumentParser:
                 for value in f.read().splitlines():
                     data.append(placeholder, value)
             return data
-        except:
-            raise Exception("Parsing '{}' failed! Invalid file format!".format(placeholder_file))
+        except Exception:
+            raise Exception(
+                "Parsing placeholder '{}' failed! The file '{}' has an invalid format!".format(placeholder, file))
 
     @staticmethod
-    def _parse_value(value: str, sep: str) -> dict:
+    def _parse_value(placeholder: str, value: str) -> dict:
         return {"": value}
 
 
@@ -156,7 +106,7 @@ class PlaceholderFormatParser:
     """ Parses a format string into a list of placeholders. """
 
     @staticmethod
-    def parse(format_string):
+    def parse(format_string, opener="<", closer=">"):
 
         def _parse_parts(parts, i=0):
             result = []
@@ -172,9 +122,11 @@ class PlaceholderFormatParser:
         def _parse_part(part, i):
             return list(
                 OrderedDict.fromkeys(
-                    PlaceholderFormat("<" + placeholder_format + ">", i == 0) \
-                        for placeholder_format in \
-                            re.findall(r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>", part or "")))
+                    PlaceholderFormat("<" + placeholder_format + ">", i == 0)
+                        for placeholder_format in
+                            re.findall(
+                                r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>",
+                                       EscapedBracketCodec.encode(part, opener, closer) or "")))
 
         return _parse_parts(ParenthesesParser.parse(format_string))
 
@@ -199,22 +151,26 @@ class ParenthesesParser:
                 c = format_string[i]
                 if c == opener:
                     if i > 0:
-                        components.append(format_string[start:i])
+                        components.append(EscapedBracketCodec.decode(format_string[start:i], opener, closer))
                     i, result = _parse_parentheses(format_string, i + 1, balance + 1)
                     components.append(result)
                     start = i + 1
                 elif c == closer:
                     balance = balance - 1
-                    components.append(format_string[start:i])
+                    components.append(EscapedBracketCodec.decode(format_string[start:i], opener, closer))
                     if balance < 0:
                         raise Exception("Unbalanced parentheses!")
                     return i, components
                 i = i + 1
 
-            components.append(format_string[start:len(format_string)])
+            components.append(EscapedBracketCodec.decode(format_string[start:len(format_string)], opener, closer))
             return i, components
 
-        return _parse_parentheses(format_string)[1]
+        # Parts enclosed by square brackets (e.g. "<arg1> [<arg2>] <arg3>") are considered optional.
+        # Since our parser can not differentiate between user-specified square brackets and those used for specifying
+        # optional parts, the user needs to escape them (e.g. \[ or \]). To make parsing easier we encode escaped
+        # square brackets here.
+        return _parse_parentheses(EscapedBracketCodec.encode(format_string, opener, closer))[1]
 
 
 class FormatStringParser:
@@ -502,19 +458,6 @@ class Config(object):
     editor = property(_get_editor)
 
 
-class EscapedSquareBracketCodec:
-
-    @staticmethod
-    def encode(str):
-        """ Encodes escaped square brackets. """
-        return str.replace('\\[', chr(14)).replace('\\]', chr(15))
-
-    @staticmethod
-    def decode(str):
-        """ Decodes to square brackets. """
-        return str.replace(chr(14), "[").replace(chr(15), "]")
-
-
 class PlaceholderValuePrintFormatter:
 
     @staticmethod
@@ -587,11 +530,7 @@ class DataBuilder(object):
         """
         # Parameters specified by the user + the reserved placeholders (e.g. <datetime>).
         parameters = list(self.data.keys()) + list(self.config.get_reserved_placeholder_names())
-        # Parts enclosed by square brackets (e.g. "<arg1> [<arg2>] <arg3>") are considered optional.
-        # Since our parser can not differentiate between user-specified square brackets and those used for specifying
-        # optional parts, the user needs to escape them (e.g. \[ or \]).  To make parsing easier we encode escaped
-        # square brackets here.
-        return FormatStringParser.parse(EscapedSquareBracketCodec.encode(format_string), parameters)
+        return FormatStringParser.parse(format_string, parameters)
 
     def transform_data(self):
         """
@@ -676,6 +615,14 @@ class DataBuilder(object):
                 value = self.config.codecs[codec].run(value)
             return value
 
+    def _escape_brackets(self, str):
+        if str:
+            return str.replace("[", "\\[").replace("]", "\\]").replace("<", "\\<").replace(">", "\\>")
+
+    def _unescape_brackets(self, str):
+        if str:
+            return str.replace("\\[", "[").replace("\\]", "]").replace("\\<", "<").replace("\\>", ">")
+
     def build(self):
         result = []
         if self._format_string_minified:
@@ -712,12 +659,11 @@ class DataBuilder(object):
                     for placeholder in self.get_placeholders():
                         row = data_frame[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
                         value = self._apply_codecs(row[i], placeholder)
-                        output_line = output_line.replace("<" + placeholder.format_string + ">", value)
+                        output_line = output_line.replace("<" + placeholder.format_string + ">", self._escape_brackets(value))
 
                     result.append(output_line)
 
-        # Decode encoded '\['- and '\]'-sequences to '[' and ']' (see __init__ method for more information).
-        return [EscapedSquareBracketCodec.decode(line) for line in result]
+        return [self._unescape_brackets(line) for line in result]
 
 
 class Snippet(object):
@@ -942,23 +888,38 @@ def __main__():
     
     Examples:
     
-        # A rather simple string format example using snippet
-        $ snippet -f "hello <arg1>" snippet
+        # Add a new snippet to the database
+        $ snippet -e archive/extract-tgz -f 'tar -xzvf <archive>'
         
-        # Assigning multiple values and making use of presets
-        $ snippet -f "ping -c 1 <rhost> > ping_<rhost>_<datetime>.log;" rhost=localhost github.com
+        # Edit a snippet (will open vim)
+        $ snippet -e archive/extract-tgz
+             
+        # Search a snippet which include the term "extract" (will open fzf)
+        $ snippet -t extract
         
-        # Using templates and reading arguments from a file
-        $ snippet -t net/scan/nmap-ping rhost:hosts.txt
+        # Fill snippet with a value
+        $ snippet -t archive/extract-tgz /path/to/foo.tar.gz
         
-        # When no template is specified an interactive template search prompt is displayed
-        $ snippet rhost:hosts.txt
+        # Fill snippet with multiple values
+        $ snippet -t archive/extract-tgz /path/to/foo.tar.gz /path/to/bar.tar.gz
+        
+        # Fill snippet with multiple values while using repeatable placeholders (e.g. <file...>)
+        $ snippet -f "tar -czvf <archive> <file...>" /path/to/foo.tar file=foo bar
+        
+        # Using presets (e.g. '<datetime>' to include current datetime)
+        $ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file=foo bar
+        
+        # Import values from file
+        $ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file:files.txt
+        
+        # Using optionals
+        $ snippet -f "python3 -m http.server[ --bind<lhost>][ <lport>]" lport=4444
+        
+        # Using defaults
+        $ snippet -f "python3 -m http.server[ --bind<lhost>] <lport=8000>"
         
         # Using codecs
-        $ snippet -f "echo 'hello <arg1> (<arg1:b64>)';" snippet
-        
-        # Using optional arguments
-        $ snippet -f "echo '<arg1>[ <arg2>]'" snippet 
+        $ snippet -f "tar -czvf <archive:squote> <file:squote...>" /path/to/foo.tar file=foo bar
         """
     )
     parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',
@@ -987,9 +948,9 @@ def __main__():
     parser.add_argument('--env', '--environment', action="store_true",
                         dest='environment',
                         help="Shows all environment variables.")
-    parser.add_argument('-v', '--verbose', action="store_true",
+    parser.add_argument('-q', '--quiet', action="store_false",
                         dest='verbose',
-                        help="Prints additional information (e.g. string format, template).")
+                        help="Do not print additional information (e.g. string format, template, ...).")
     parser.add_argument('-d', '--debug', action="store_true",
                         dest='debug',
                         help="Prints additional debug information (e.g. stack traces).")
