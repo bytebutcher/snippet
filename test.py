@@ -70,8 +70,8 @@ class TestSnippet(unittest.TestCase):
         ])
 
     def test_placeholder_default_text(self):
-        self.assertEqual(new_snippet("abc <arg1==!test!=>", []), [
-            "abc =!test!="
+        self.assertEqual(new_snippet("abc <arg1==!Test!=>", []), [
+            "abc =!Test!="
         ])
 
     def test_placeholder_default_text_with_codec(self):

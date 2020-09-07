@@ -244,16 +244,28 @@ class PlaceholderFormat:
     def __init__(self, format_string: str, required):
         try:
             assert(format_string.startswith("<") and format_string.endswith(">"))
-            self.format_string = format_string[1:-1]
-            self.name, codecs, self.repeatable, self.default = re.findall(r"<(\w+)((?::\w+)*)([^A-Za-z0-9]?\.\.\.)?(=[^>]+)?>", format_string.lower()).pop()
-            self.codecs = list(filter(None, codecs.split(":")))
+            self.format_string = format_string[1:-1] # Remove angle brackets
+            name, codecs, self.repeatable, self.default = re.findall(
+                r"<(\w+)((?::\w+)*)([^A-Za-z0-9]?\.\.\.)?(=[^>]+)?>", format_string).pop()
+            self.name = name.lower()
+            self.codecs = list(item.lower() for item in filter(None, codecs.split(":")))
             self.default = self.default[1:] if self.default else None # Remove the equal-sign at the beginning.
             self.required = required
         except Exception:
             raise Exception("Transforming placeholders failed! Invalid format!")
 
     def _get_delimiter(self):
-        """ The delimiter used when repeatable (default = " "). """
+        """
+        Returns delimiter used when repeatable parts are joined (default = " ").
+
+        Example:
+
+            $ snippet -t "<arg...>" 1 2 3
+            1 2 3
+            $ snippet -t "<arg,...>" 1 2 3
+            1,2,3
+
+        """
         return " " if not self.repeatable or len(self.repeatable) == 3 else self.repeatable[0]
 
     delimiter = property(_get_delimiter)

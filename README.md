@@ -255,6 +255,24 @@ $ snippet -f "\[<arg>\]" hello
 [hello]
 ```
 
+#### Using repeatables
+
+If you specify multiple values for placeholders `snippet` will print all possible permutations.
+Since this is not always the thing you wanna do `snippet` allows marking placeholders as repeatable.
+This is done by placing three dots at the end of a placeholder. By default arguments which are
+associated with a repeatable placeholder are separated by space. 
+However, it is also possible to specify a custom character as separator:
+
+```
+$ snippet -f "<arg1>" hello world
+hello
+world
+$ snippet -f "<arg1...>" hello world
+hello world
+$ snippet -f "<arg1,...>" hello world
+hello,world
+``` 
+
 ### Executing commands
 
 ```snippet``` can be used to easily execute alternating commands in sequence:
