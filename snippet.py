@@ -459,11 +459,16 @@ class Config(object):
 
         try:
             with open(format_template_file) as f:
+                comments = []
                 lines = []
                 for line in f.read().splitlines():
-                    if not line.startswith("#"):
+                    if line.startswith("#"):
+                        comment = line[1:].strip()
+                        if comment:
+                            comments.append(comment)
+                    else:
                         lines.append(line)
-                return format_template_name, os.linesep.join(lines)
+                return format_template_name, os.linesep.join(comments), os.linesep.join(lines)
         except:
             raise Exception("Loading {} failed! Invalid template format!".format(format_template_name or "template"))
 
@@ -782,9 +787,13 @@ class Snippet(object):
             raise Exception("Creating template '{}' failed!".format(template_name))
 
     def use_template(self, template_name):
-        format_template_name, format_string = self.config.get_format_template(template_name)
+        format_template_name, comments, format_string = self.config.get_format_template(template_name)
         self._log_info(colorize("Template:", Fore.YELLOW))
         self._log_info(colorize("   {}".format(format_template_name), Fore.WHITE))
+        if comments:
+            self._log_info(colorize("Notes:", Fore.YELLOW))
+            for comment in comments.split(os.linesep):
+                self._log_info(colorize("   {}".format(comment), Fore.WHITE))
         self.format_string = format_string
 
     def list_templates(self, filter_string=None):
