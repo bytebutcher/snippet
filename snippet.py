@@ -211,21 +211,28 @@ class FormatStringParser:
         return "".join(FormatStringParser._flatten_list(essentials))
 
     @staticmethod
-    def _remove_optionals(parts, arguments):
+    def _remove_optionals(parts, arguments, required=True):
         result = []
         for part in parts:
             if isinstance(part, str):
                 placeholders = PlaceholderFormatParser.parse(part)
                 for placeholder in placeholders:
                     # Ignore argument if it is not defined nor a default value is set.
-                    not_defined = not placeholder.name in arguments and not placeholder.default
-                    # Ignore argument if it is empty even if a default value is specified.
+                    # $ snippet -f  "<arg>"             # ignore
+                    # $ snippet -f  "<arg=default>"     # do not ignore
+                    not_defined = placeholder.name not in arguments and not placeholder.default
+                    if not_defined:
+                        return []
+                    # Ignore argument if it is empty and optional.
+                    # $ snippet -f "a<arg>b" arg=
                     has_empty_argument = placeholder.name in arguments and not arguments[placeholder.name]
-                    if has_empty_argument or not_defined:
+                    if has_empty_argument and not required:
                         return []
                 result.append(part)
             elif isinstance(part, list):
-                result.append(FormatStringParser._remove_optionals(part, arguments))
+                # The first list of parts is required. Everything beyond is optional.
+                # $ snippet -f "a<arg>b[c<arg>d]" arg=
+                result.append(FormatStringParser._remove_optionals(part, arguments, required=False))
         return result
 
     @staticmethod

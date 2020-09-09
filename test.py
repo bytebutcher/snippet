@@ -69,6 +69,11 @@ class TestSnippet(unittest.TestCase):
             "abc "
         ])
 
+    def test_optional_and_required(self):
+        self.assertEqual(new_snippet("a<arg>b[c<arg>d]", ["arg="]), [
+            "ab"
+        ])
+
     def test_placeholder_default_text(self):
         self.assertEqual(new_snippet("abc <arg1==!Test!=>", []), [
             "abc =!Test!="
