@@ -499,16 +499,21 @@ class PlaceholderValuePrintFormatter:
                 placeholder_names.pop(placeholder.name)
 
             if placeholder.name not in data_frame:
-                required = colorize("(required)", Fore.RED) \
-                    if placeholder.required else colorize("(optional)", Fore.GREEN)
+                if placeholder.default:
+                    status = colorize(" (default)", Fore.BLUE)
+                    value = colorize(placeholder.default, Fore.LIGHTBLUE_EX)
+                elif placeholder.required:
+                    status = colorize("(required)", Fore.RED)
+                    value = colorize("<not assigned>", Fore.LIGHTRED_EX)
+                else:
+                    status = colorize("(optional)", Fore.GREEN)
+                    value = colorize("<not assigned>", Fore.LIGHTGREEN_EX)
+
                 # No value assigned.
                 lines.append("   {} {} = {}".format(
-                    colorize(placeholder.name.rjust(placeholder_name_max_len), Fore.WHITE),
-                    required,
-                    colorize("<not assigned>", Fore.LIGHTRED_EX)
-                    if placeholder.required else colorize("<not assigned>", Fore.LIGHTGREEN_EX)))
+                    colorize(placeholder.name.rjust(placeholder_name_max_len), Fore.WHITE), status, value))
             else:
-                required = colorize("(required)", Fore.GREEN) \
+                status = colorize("(required)", Fore.GREEN) \
                     if placeholder.required else colorize("(optional)", Fore.GREEN)
                 # Print list of assigned values.
                 values = list(OrderedDict.fromkeys(data_frame[placeholder.name]))
@@ -517,8 +522,8 @@ class PlaceholderValuePrintFormatter:
                     value = values[i]
                     lines.append("   {} {} {} {}".format(
                         colorize(placeholder_name.rjust(placeholder_name_max_len), Fore.WHITE),
-                        required, "=" if i == 0 else "|", value))
-                    if i == 0: required = len("(optional)") * " "  # Show (required/optional) only for the first value.
+                        status, "=" if i == 0 else "|", value))
+                    if i == 0: status = len("(optional)") * " "  # Show (required/optional) only for the first value.
 
         return lines
 
@@ -818,7 +823,6 @@ class Snippet(object):
         for placeholder in reserved_placeholder_values.keys():
             temporary_data[placeholder] = reserved_placeholder_values[placeholder]
         return tabulate(temporary_data.to_data_frame(), headers="keys")
-
 
     def list_placeholders(self):
         """ Returns all the placeholders found in the format string. """
