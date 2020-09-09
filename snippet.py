@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import json
+
 import argcomplete, argparse
 
 from collections import defaultdict, OrderedDict
@@ -106,9 +108,9 @@ class PlaceholderFormatParser:
     """ Parses a format string into a list of placeholders. """
 
     @staticmethod
-    def parse(format_string, opener="<", closer=">"):
+    def parse(format_string, opener="<", closer=">") -> list:
 
-        def _parse_parts(parts, i=0):
+        def _parse_parts(parts, i=0) -> list:
             result = []
             for part in parts:
                 if isinstance(part, str):
@@ -119,7 +121,7 @@ class PlaceholderFormatParser:
                         result.append(placeholder)
             return result
 
-        def _parse_part(part, i):
+        def _parse_part(part, i) -> list:
             return list(
                 OrderedDict.fromkeys(
                     PlaceholderFormat("<" + placeholder_format + ">", i == 0)
@@ -278,6 +280,9 @@ class PlaceholderFormat:
 
         """
         return " " if not self.repeatable or len(self.repeatable) == 3 else self.repeatable[0]
+
+    def __str__(self):
+        return json.dumps(self.__dict__)
 
     delimiter = property(_get_delimiter)
 
@@ -490,6 +495,17 @@ class PlaceholderValuePrintFormatter:
 
     @staticmethod
     def build(format_string, data_frame):
+
+        def _unique_placeholders(placeholders):
+            """ Returns a list of unique placeholders while preserving the required and default attribute. """
+            result = {}
+            for placeholder in placeholders:
+                if placeholder.name not in result:
+                    result[placeholder.name] = placeholder
+                result[placeholder.name].required = result[placeholder.name].required or placeholder.required
+                result[placeholder.name].default = result[placeholder.name].default or placeholder.default
+            return result.values()
+
         lines = []
         placeholders = PlaceholderFormatParser.parse(format_string)
         if not placeholders:
@@ -498,18 +514,20 @@ class PlaceholderValuePrintFormatter:
 
         placeholder_names = OrderedDict.fromkeys([placeholder.name for placeholder in placeholders])
         placeholder_name_max_len = len(max(placeholder_names, key=len))
+        unique_placeholders = _unique_placeholders(placeholders)
 
         # Print assigned values for each placeholder.
         lines.append(colorize("Placeholders:", Fore.YELLOW))
-        for placeholder in placeholders:
-
-            # Only print placeholder name once.
-            if placeholder.name not in placeholder_names:
-                continue
+        for placeholder in unique_placeholders:
+            # Retrieve values.
+            if placeholder.name in data_frame:
+                values = list(OrderedDict.fromkeys(data_frame[placeholder.name]))
+            elif placeholder.name + "..." in data_frame:
+                values = list(OrderedDict.fromkeys(data_frame[placeholder.name + "..."][0]))
             else:
-                placeholder_names.pop(placeholder.name)
+                values = None
 
-            if placeholder.name not in data_frame:
+            if not values or placeholder.default:
                 if placeholder.default:
                     status = colorize(" (default)", Fore.BLUE)
                     value = colorize(placeholder.default, Fore.LIGHTBLUE_EX)
@@ -524,10 +542,9 @@ class PlaceholderValuePrintFormatter:
                 lines.append("   {} {} = {}".format(
                     colorize(placeholder.name.rjust(placeholder_name_max_len), Fore.WHITE), status, value))
             else:
+                # Print list of assigned values.
                 status = colorize("(required)", Fore.GREEN) \
                     if placeholder.required else colorize("(optional)", Fore.GREEN)
-                # Print list of assigned values.
-                values = list(OrderedDict.fromkeys(data_frame[placeholder.name]))
                 for i in range(len(values)):
                     placeholder_name = placeholder.name if i == 0 else len(placeholder.name) * " "
                     value = values[i]
