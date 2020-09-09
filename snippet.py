@@ -70,7 +70,7 @@ class FormatArgumentParser:
         :return: a dict with placeholders and a list of values (e.g. {'': ['a b']}, {'ARG1': ['a b']},
                  {'ARG2': ['line1', 'line2'] }).
         """
-        placeholder, separator, value = re.findall(r"(?:(\w+)([=:]))?(.+)", format_argument).pop()
+        placeholder, separator, value = re.findall(r"(?:(\w+)([=:]))?(.*)", format_argument).pop(0)
         return {
             "=": FormatArgumentParser._parse_placeholder_value,
             ":": FormatArgumentParser._parse_placeholder_file,
@@ -190,7 +190,14 @@ class FormatStringParser:
     """
 
     @staticmethod
-    def parse(format_string, arguments) -> str:
+    def parse(format_string: str, arguments: dict) -> str:
+        """
+        Parses a format string and removes placeholders inside square brackets which do not have a value assigned.
+
+        :param format_string: the format string (e.g. "A <arg1> B")
+        :param arguments: a dictionary with argument names as key and booleans as value.
+                          The boolean value specifies whether the argument is non-empty (True = non-empty).
+        """
         parentheses = ParenthesesParser.parse(format_string)
         if not parentheses:
             # No optional arguments found in format string.
@@ -208,7 +215,11 @@ class FormatStringParser:
             if isinstance(part, str):
                 placeholders = PlaceholderFormatParser.parse(part)
                 for placeholder in placeholders:
-                    if not placeholder.name in arguments and not placeholder.default:
+                    # Ignore argument if it is not defined nor a default value is set.
+                    not_defined = not placeholder.name in arguments and not placeholder.default
+                    # Ignore argument if it is empty even if a default value is specified.
+                    has_empty_argument = placeholder.name in arguments and not arguments[placeholder.name]
+                    if has_empty_argument or not_defined:
                         return []
                 result.append(part)
             elif isinstance(part, list):
@@ -550,8 +561,14 @@ class DataBuilder(object):
         This function removes optional parts of the supplied format string which were not set by the user or the
         snippet system (e.g. reserved placeholders).
         """
-        # Parameters specified by the user + the reserved placeholders (e.g. <datetime>).
-        parameters = list(self.data.keys()) + list(self.config.get_reserved_placeholder_names())
+        # Collect parameters specified by the user and the reserved placeholders (e.g. <datetime>) as well.
+        parameters = {}
+        for parameter in self.data.keys():
+            # Check whether parameter is empty
+            # $ snippet -f "[<arg>]" arg=
+            parameters[parameter] = self.data[parameter] != [""]
+        for parameter in self.config.get_reserved_placeholder_names():
+            parameters[parameter] = True # is never empty
         return FormatStringParser.parse(format_string, parameters)
 
     def transform_data(self):
@@ -640,10 +657,14 @@ class DataBuilder(object):
     def _escape_brackets(self, str):
         if str:
             return str.replace("[", "\\[").replace("]", "\\]").replace("<", "\\<").replace(">", "\\>")
+        else:
+            return str
 
     def _unescape_brackets(self, str):
         if str:
             return str.replace("\\[", "[").replace("\\]", "]").replace("\\<", "<").replace("\\>", ">")
+        else:
+            return str
 
     def build(self):
         result = []

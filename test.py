@@ -97,6 +97,11 @@ class TestSnippet(unittest.TestCase):
             "123 "
         ])
 
+    def test_unset_optional_with_default_text(self):
+        self.assertEqual(new_snippet("a[b<arg1=test>b]a", ["arg1="]), [
+            "aa"
+        ])
+
     def test_parse_big_single_argument(self):
         self.assertEqual(
             new_snippet("<arg1>", ["arg1=a b arg2=c d"]),
