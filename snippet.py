@@ -553,7 +553,9 @@ class PlaceholderValuePrintFormatter:
             else:
                 values = None
 
-            if not values or placeholder.default:
+            is_default = values == list(placeholder.default)
+            is_set = values is not None
+            if not is_set or is_default:
                 if placeholder.default:
                     status = colorize(" (default)", Fore.BLUE)
                     value = colorize(placeholder.default, Fore.LIGHTBLUE_EX)
