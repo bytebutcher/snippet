@@ -35,8 +35,25 @@ home_config_path = os.path.join(str(Path.home()), ".snippet")
 
 
 def colorize(string: str, color):
-    """ Little helper function to colorize a string. """
+    """ Colorize a string. """
     return color + string + Style.RESET_ALL
+
+
+class Logger:
+
+    logger = logging.getLogger("snippet")
+
+    @staticmethod
+    def info(msg):
+        Logger.logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
+
+    @staticmethod
+    def debug(msg):
+        Logger.logger.info(colorize("DEBUG: ", Fore.LIGHTBLACK_EX) + msg)
+
+    @staticmethod
+    def error(msg):
+        Logger.logger.info(colorize("ERROR: ", Fore.RED) + msg)
 
 
 class EscapedBracketCodec:
@@ -202,11 +219,11 @@ class FormatStringParser:
         """
         parentheses = ParenthesesParser.parse(format_string)
         if not parentheses:
-            # No optional arguments found in format string.
+            Logger.debug("No optional arguments found in format string.")
             return format_string
         essentials = FormatStringParser._remove_optionals(parentheses, arguments)
         if not essentials:
-            # Not all essential arguments are set.
+            Logger.debug("Not all essential arguments are set.")
             return format_string
         return "".join(FormatStringParser._flatten_list(essentials))
 
@@ -217,16 +234,18 @@ class FormatStringParser:
             if isinstance(part, str):
                 placeholders = PlaceholderFormatParser.parse(part)
                 for placeholder in placeholders:
-                    # Ignore argument if it is not defined nor a default value is set.
-                    # $ snippet -f  "<arg>"             # ignore
-                    # $ snippet -f  "<arg=default>"     # do not ignore
                     not_defined = placeholder.name not in arguments and not placeholder.default
                     if not_defined:
+                        # Ignore argument if it is not defined nor a default value is set.
+                        # $ snippet -f  "<arg>"             # ignore
+                        # $ snippet -f  "<arg=default>"     # do not ignore
+                        Logger.debug("{}: No argument defined.".format(placeholder.name))
                         return []
-                    # Ignore argument if it is empty and optional.
-                    # $ snippet -f "a<arg>b" arg=
                     has_empty_argument = placeholder.name in arguments and not arguments[placeholder.name]
                     if has_empty_argument and not required:
+                        # Ignore argument if it is empty and optional.
+                        # $ snippet -f "a<arg>b" arg=
+                        Logger.debug("{}: Empty argument supplied and optional.".format(placeholder.name))
                         return []
                 result.append(part)
             elif isinstance(part, list):
@@ -585,14 +604,23 @@ class DataBuilder(object):
         This function removes optional parts of the supplied format string which were not set by the user or the
         snippet system (e.g. reserved placeholders).
         """
-        # Collect parameters specified by the user and the reserved placeholders (e.g. <datetime>) as well.
+        # Collect defaults and set them if no value was assigned.
+        for placeholder in PlaceholderFormatParser.parse(format_string):
+            if placeholder.default is not None and placeholder.name not in self.data.keys():
+                self.data.append(placeholder.name, placeholder.default)
+
+        # Check whether parameters are empty.
         parameters = {}
+
+        # Collect parameters specified by the user.
         for parameter in self.data.keys():
-            # Check whether parameter is empty
             # $ snippet -f "[<arg>]" arg=
             parameters[parameter] = self.data[parameter] != [""]
+
+        # Collect reserved placeholders (e.g. <datetime>).
         for parameter in self.config.get_reserved_placeholder_names():
             parameters[parameter] = True # is never empty
+
         return FormatStringParser.parse(format_string, parameters)
 
     def transform_data(self):
@@ -781,9 +809,8 @@ class Snippet(object):
                                 if not placeholder:
                                     # No placeholders left to assign values to.
                                     # $ snippet -f "text" val1
-                                    self.config.logger.warning(
-                                        " WARN: Can not assign '{}' to unknown placeholder!".format(
-                                            ", ".join(assigned_values)))
+                                    self.config.logger.warning(colorize(" WARN: ", Fore.LIGHTYELLOW_EX) +
+                                        "Can not assign '{}' to unknown placeholder!".format(assigned_values))
                                     continue
                                 else:
                                     # Use the last placeholder if any.
@@ -828,8 +855,7 @@ class Snippet(object):
             if format_string:
                 with open(home_template_file, 'w') as f:
                     f.write(format_string)
-                self.config.logger.info("{}Successfully created template '{}'!".format(
-                    colorize(" INFO: ", Fore.GREEN), template_name))
+                self._log_info("Successfully created template '{}'!".format(template_name))
             else:
                 subprocess.call((self.config.editor, home_template_file))
 
