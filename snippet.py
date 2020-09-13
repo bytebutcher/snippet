@@ -553,7 +553,7 @@ class PlaceholderValuePrintFormatter:
             else:
                 values = None
 
-            is_default = values == list(placeholder.default)
+            is_default = placeholder.default and values == list(placeholder.default)
             is_set = values is not None
             if not is_set or is_default:
                 if placeholder.default:

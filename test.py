@@ -7,6 +7,7 @@ logger = config.logger
 
 def new_snippet(format_string, arguments):
     s = Snippet(config)
+    s.verbose = True
     s.format_string = format_string
     s.arguments = arguments
     return s.build()
@@ -19,6 +20,9 @@ class TestSnippet(unittest.TestCase):
 
     def test_simple_placeholders(self):
         self.assertEqual(new_snippet("abc <arg1> <arg2> def", ["arg1=test", "arg2=tset"]), ["abc test tset def"])
+
+    def test_placeholder_empty_value(self):
+        self.assertEqual(new_snippet("abc <arg1> def", ["arg1="]), ["abc  def"])
 
     def test_uppercase_placeholder_name_in_argument(self):
         self.assertEqual(new_snippet("<arg1>", ["ARG1=test"]), ["test"])
