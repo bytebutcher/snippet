@@ -41,19 +41,31 @@ def colorize(string: str, color):
 
 class Logger:
 
-    logger = logging.getLogger("snippet")
+    def __init__(self, app_id, log_format, level):
+        self._logger = logging.getLogger(app_id)
+        self._handler = logging.StreamHandler(sys.stderr)
+        self._handler.setFormatter(logging.Formatter(log_format))
+        self._logger.addHandler(self._handler)
+        self.set_level(level)
 
-    @staticmethod
-    def info(msg):
-        Logger.logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
+    def set_level(self, level):
+        self._logger.setLevel(level)
+        self._handler.setLevel(level)
 
-    @staticmethod
-    def debug(msg):
-        Logger.logger.info(colorize("DEBUG: ", Fore.LIGHTBLACK_EX) + msg)
+    def get_level(self):
+        return logging.root.level
 
-    @staticmethod
-    def error(msg):
-        Logger.logger.info(colorize("ERROR: ", Fore.RED) + msg)
+    def info(self, msg):
+        self._logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
+
+    def debug(self, msg):
+        self._logger.debug(colorize("DEBUG: ", Fore.LIGHTBLACK_EX) + msg)
+
+    def warning(self, msg):
+        self._logger.warning(colorize(" WARN: ", Fore.LIGHTYELLOW_EX) + msg)
+
+    def error(self, msg):
+        self._logger.info(colorize("ERROR: ", Fore.RED) + msg)
 
 
 class EscapedBracketCodec:
@@ -80,8 +92,7 @@ class FormatArgumentParser:
     *) optional parts are denoted with square brackets and parts which can be repeated are marked with three dots.
     """
 
-    @staticmethod
-    def parse(format_argument: str) -> dict:
+    def parse(self, format_argument: str) -> dict:
         """
         Parses the argument and adds it into a dict with it's placeholder name and the associated values.
 
@@ -91,17 +102,15 @@ class FormatArgumentParser:
         """
         placeholder, separator, value = re.findall(r"(?:(\w+)([=:]))?(.*)", format_argument).pop(0)
         return {
-            "=": FormatArgumentParser._parse_placeholder_value,
-            ":": FormatArgumentParser._parse_placeholder_file,
-            "": FormatArgumentParser._parse_value
+            "=": self._parse_placeholder_value,
+            ":": self._parse_placeholder_file,
+            "": self._parse_value
         }.get(separator)(placeholder, value)
 
-    @staticmethod
-    def _parse_placeholder_value(placeholder: str, value: str) -> dict:
+    def _parse_placeholder_value(self, placeholder: str, value: str) -> dict:
         return {placeholder: value}
 
-    @staticmethod
-    def _parse_placeholder_file(placeholder: str, file: str) -> dict:
+    def _parse_placeholder_file(self, placeholder: str, file: str) -> dict:
         if not os.path.isfile(file):
             raise Exception(
                 "Parsing placeholder '{}' failed! The file '{}' was not found!".format(placeholder, file))
@@ -116,16 +125,14 @@ class FormatArgumentParser:
             raise Exception(
                 "Parsing placeholder '{}' failed! The file '{}' has an invalid format!".format(placeholder, file))
 
-    @staticmethod
-    def _parse_value(placeholder: str, value: str) -> dict:
+    def _parse_value(self, placeholder: str, value: str) -> dict:
         return {"": value}
 
 
 class PlaceholderFormatParser:
     """ Parses a format string into a list of placeholders. """
 
-    @staticmethod
-    def parse(format_string, opener="<", closer=">") -> list:
+    def parse(self, format_string, opener="<", closer=">") -> list:
 
         def _parse_parts(parts, i=0) -> list:
             result = []
@@ -147,7 +154,7 @@ class PlaceholderFormatParser:
                                 r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>",
                                        EscapedBracketCodec.encode(part, opener, closer) or "")))
 
-        return _parse_parts(ParenthesesParser.parse(format_string))
+        return _parse_parts(ParenthesesParser().parse(format_string))
 
 
 class ParenthesesParser:
@@ -160,8 +167,7 @@ class ParenthesesParser:
 
     """
 
-    @staticmethod
-    def parse(format_string, opener="[", closer="]") -> list:
+    def parse(self, format_string, opener="[", closer="]") -> list:
 
         def _parse_parentheses(format_string, i=0, balance=0):
             components = []
@@ -207,9 +213,10 @@ class FormatStringParser:
         RESULT        = 'AB'
 
     """
+    def __init__(self, config):
+        self._logger = config.logger
 
-    @staticmethod
-    def parse(format_string: str, arguments: dict) -> str:
+    def parse(self, format_string: str, arguments: dict) -> str:
         """
         Parses a format string and removes placeholders inside square brackets which do not have a value assigned.
 
@@ -217,51 +224,49 @@ class FormatStringParser:
         :param arguments: a dictionary with argument names as key and booleans as value.
                           The boolean value specifies whether the argument is non-empty (True = non-empty).
         """
-        parentheses = ParenthesesParser.parse(format_string)
+        parentheses = ParenthesesParser().parse(format_string)
         if not parentheses:
-            Logger.debug("No optional arguments found in format string.")
+            self._logger.debug("No optional arguments found in format string.")
             return format_string
-        essentials = FormatStringParser._remove_optionals(parentheses, arguments)
+        essentials = self._remove_optionals(parentheses, arguments)
         if not essentials:
-            Logger.debug("Not all essential arguments are set.")
+            self._logger.debug("Not all essential arguments are set.")
             return format_string
-        return "".join(FormatStringParser._flatten_list(essentials))
+        return "".join(self._flatten_list(essentials))
 
-    @staticmethod
-    def _remove_optionals(parts, arguments, required=True):
+    def _remove_optionals(self, parts, arguments, required=True):
         result = []
         for part in parts:
             if isinstance(part, str):
-                placeholders = PlaceholderFormatParser.parse(part)
+                placeholders = PlaceholderFormatParser().parse(part)
                 for placeholder in placeholders:
                     not_defined = placeholder.name not in arguments and not placeholder.default
                     if not_defined:
                         # Ignore argument if it is not defined nor a default value is set.
                         # $ snippet -f  "<arg>"             # ignore
                         # $ snippet -f  "<arg=default>"     # do not ignore
-                        Logger.debug("{}: No argument defined.".format(placeholder.name))
+                        self._logger.debug("{}: No argument defined.".format(placeholder.name))
                         return []
                     has_empty_argument = placeholder.name in arguments and not arguments[placeholder.name]
                     if has_empty_argument and not required:
                         # Ignore argument if it is empty and optional.
                         # $ snippet -f "a<arg>b" arg=
-                        Logger.debug("{}: Empty argument supplied and optional.".format(placeholder.name))
+                        self._logger.debug("{}: Empty argument supplied and optional.".format(placeholder.name))
                         return []
                 result.append(part)
             elif isinstance(part, list):
                 # The first list of parts is required. Everything beyond is optional.
                 # $ snippet -f "a<arg>b[c<arg>d]" arg=
-                result.append(FormatStringParser._remove_optionals(part, arguments, required=False))
+                result.append(self._remove_optionals(part, arguments, required=False))
         return result
 
-    @staticmethod
-    def _flatten_list(lst):
+    def _flatten_list(self, lst):
         result = []
         for item in lst:
             if isinstance(item, str):
                 result.append(item)
             elif isinstance(item, list):
-                for i in FormatStringParser._flatten_list(item):
+                for i in self._flatten_list(item):
                     result.append(i)
         return result
 
@@ -363,24 +368,14 @@ class Codec(object):
 
 class Config(object):
 
-    verbose = False
-
     def __init__(self, app_name, paths):
         self.paths = paths
         self.format_template_paths = [os.path.join(path, "templates") for path in paths]
         self.codec_paths = [os.path.join(path, "codecs") for path in paths]
-        self.logger = self._init_logger(app_name, "%(msg)s")
+        self.logger = Logger(app_name, "%(msg)s", logging.ERROR)
         self.profile = self._load_profile()
         self.codecs = self._load_codecs()
         self._reserved_placeholder_values = []
-
-    def _init_logger(self, app_id, log_format="%(module)s: %(lineno)d: %(msg)s"):
-        logger = logging.getLogger(app_id)
-        logging.root.setLevel(logging.INFO)
-        hdlr = logging.StreamHandler(sys.stderr)
-        hdlr.setFormatter(logging.Formatter(log_format))
-        logger.addHandler(hdlr)
-        return logger
 
     def _load_profile(self):
         for profile_path in self.paths:
@@ -422,7 +417,7 @@ class Config(object):
                                 try:
                                     codecs[filename] = getattr(__import__(filename), classname)()
                                 except Exception:
-                                    self.logger.warning("WARNING: Loading codec {} failed!".format(filename))
+                                    self.logger.warning("Loading codec {} failed!".format(filename))
                     sys.path.pop()
 
         return codecs
@@ -533,7 +528,7 @@ class PlaceholderValuePrintFormatter:
             return result.values()
 
         lines = []
-        placeholders = PlaceholderFormatParser.parse(format_string)
+        placeholders = PlaceholderFormatParser().parse(format_string)
         if not placeholders:
             # No placeholders in format string.
             return lines
@@ -592,7 +587,7 @@ class DataBuilder(object):
         self.codec_formats = codec_formats
         self._format_string_original = format_string
         self._format_string_minified = self._parse_format_string(format_string)
-        self._placeholders = PlaceholderFormatParser.parse(self._format_string_minified)
+        self._placeholders = PlaceholderFormatParser().parse(self._format_string_minified)
         for placeholder in self._placeholders:
             for codec in placeholder.codecs:
                 if codec not in self.config.codecs:
@@ -607,7 +602,7 @@ class DataBuilder(object):
         snippet system (e.g. reserved placeholders).
         """
         # Collect defaults and set them if no value was assigned.
-        for placeholder in PlaceholderFormatParser.parse(format_string):
+        for placeholder in PlaceholderFormatParser().parse(format_string):
             if placeholder.default is not None and placeholder.name not in self.data.keys():
                 self.data.append(placeholder.name, placeholder.default)
 
@@ -623,7 +618,7 @@ class DataBuilder(object):
         for parameter in self.config.get_reserved_placeholder_names():
             parameters[parameter] = True # is never empty
 
-        return FormatStringParser.parse(format_string, parameters)
+        return FormatStringParser(self.config).parse(format_string, parameters)
 
     def transform_data(self):
         """
@@ -731,10 +726,9 @@ class DataBuilder(object):
 
             data_frame = self.transform_data()
 
-            if self.config.verbose:
-                # Print all placeholders and the assigned values (verbose).
-                for line in PlaceholderValuePrintFormatter.build(self._format_string_original, data_frame):
-                    self.config.logger.info(colorize(" INFO: ", Fore.GREEN) + line)
+            # Print all placeholders and the assigned values (verbose).
+            for line in PlaceholderValuePrintFormatter.build(self._format_string_original, data_frame):
+                self.config.logger.info(line)
 
             # Get all required placeholders which are not assigned. Also consider repeatables (see transform_data).
             unset_placeholders = OrderedDict.fromkeys([
@@ -773,7 +767,7 @@ class Snippet(object):
 
     def __init__(self, config: Config):
         self._format_string = ""
-        self.config = config
+        self.config, self.logger = config, config.logger
         self.codec_formats = {}
         self.data = Data()
 
@@ -782,9 +776,9 @@ class Snippet(object):
 
     def _set_format_string(self, format_string):
         if format_string:
-            self._log_info(colorize("Format:", Fore.YELLOW))
+            self.logger.info(colorize("Format:", Fore.YELLOW))
             for line in format_string.split(os.linesep):
-                self._log_info(colorize("   {}".format(line), Fore.WHITE))
+                self.logger.info(colorize("   {}".format(line), Fore.WHITE))
             self._format_string = format_string
 
     def _set_arguments(self, data_values):
@@ -793,7 +787,7 @@ class Snippet(object):
         last_assigned_placeholder = None
         for data_value in data_values:
             if data_value:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
-                for assigned_placeholder, assigned_values in FormatArgumentParser.parse(data_value).items():
+                for assigned_placeholder, assigned_values in FormatArgumentParser().parse(data_value).items():
                     if assigned_placeholder:
                         # $ snippet -f "<arg>" arg=val
                         placeholder = assigned_placeholder
@@ -811,7 +805,7 @@ class Snippet(object):
                                 if not placeholder:
                                     # No placeholders left to assign values to.
                                     # $ snippet -f "text" val1
-                                    self.config.logger.warning(colorize(" WARN: ", Fore.LIGHTYELLOW_EX) +
+                                    self.logger.warning(
                                         "Can not assign '{}' to unknown placeholder!".format(assigned_values))
                                     continue
                                 else:
@@ -824,16 +818,6 @@ class Snippet(object):
 
     def _get_arguments(self):
         return self.data
-
-    def _set_verbose(self, verbose):
-        self.config.verbose = verbose
-
-    def _get_verbose(self):
-        return self.config.verbose
-
-    def _log_info(self, msg):
-        if self._get_verbose():
-            self.config.logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
 
     def create_or_edit_template(self, template_name, format_string):
         home_template_path = os.path.join(home_config_path, "templates")
@@ -857,7 +841,7 @@ class Snippet(object):
             if format_string:
                 with open(home_template_file, 'w') as f:
                     f.write(format_string)
-                self._log_info("Successfully created template '{}'!".format(template_name))
+                self.logger.info("Successfully created template '{}'!".format(template_name))
             else:
                 subprocess.call((self.config.editor, home_template_file))
 
@@ -866,12 +850,12 @@ class Snippet(object):
 
     def use_template(self, template_name):
         format_template_name, comments, format_string = self.config.get_format_template(template_name)
-        self._log_info(colorize("Template:", Fore.YELLOW))
-        self._log_info(colorize("   {}".format(format_template_name), Fore.WHITE))
+        self.logger.info(colorize("Template:", Fore.YELLOW))
+        self.logger.info(colorize("   {}".format(format_template_name), Fore.WHITE))
         if comments:
-            self._log_info(colorize("Notes:", Fore.YELLOW))
+            self.logger.info(colorize("Notes:", Fore.YELLOW))
             for comment in comments.split(os.linesep):
-                self._log_info(colorize("   {}".format(comment), Fore.WHITE))
+                self.logger.info(colorize("   {}".format(comment), Fore.WHITE))
         self.format_string = format_string
 
     def list_templates(self, filter_string=None):
@@ -899,7 +883,7 @@ class Snippet(object):
 
     def list_placeholders(self):
         """ Returns all the placeholders found in the format string. """
-        return [placeholder.name for placeholder in PlaceholderFormatParser.parse(self._format_string)]
+        return [placeholder.name for placeholder in PlaceholderFormatParser().parse(self._format_string)]
 
     def list_reserved_placeholders(self):
         """ Returns the list of reserved placeholders (aka Presets) e.g. 'datetime', 'date', ... """
@@ -959,7 +943,6 @@ class Snippet(object):
 
     format_string = property(_get_format_string, _set_format_string)
     arguments = property(_get_arguments, _set_arguments)
-    verbose = property(_get_verbose, _set_verbose)
 
 
 def __main__():
@@ -1056,12 +1039,14 @@ def __main__():
     argcomplete.autocomplete(parser)
     arguments = parser.parse_args()
 
-    config.logger.setLevel(logging.DEBUG if arguments.debug else logging.INFO)
+    if arguments.debug:
+        config.logger.set_level(logging.DEBUG)
+    elif arguments.verbose:
+        config.logger.set_level(logging.INFO)
+    else:
+        config.logger.set_level(logging.ERROR)
 
     try:
-        if arguments.verbose:
-            snippet.verbose = True
-
         if arguments.edit:
             snippet.create_or_edit_template(arguments.edit, arguments.format_string)
             sys.exit(0)
@@ -1072,7 +1057,7 @@ def __main__():
         if arguments.list_templates:
             template_names = snippet.list_templates()
             if not template_names:
-                logger.warning("WARNING: No templates found!")
+                logger.warning("No templates found!")
             for template_name in template_names:
                 print(template_name)
             sys.exit(0)
@@ -1080,7 +1065,7 @@ def __main__():
         if arguments.list_codecs:
             codec_names = snippet.list_codecs()
             if not codec_names:
-                logger.warning("WARNING: No codecs found!")
+                logger.warning("No codecs found!")
             for codec_name in codec_names:
                 print(codec_name)
             sys.exit(9)
@@ -1126,7 +1111,7 @@ def __main__():
 
         sys.exit(0)
     except Exception as e:
-        logger.error(colorize("ERROR: ", Fore.RED) + str(e))
+        logger.error(str(e))
         if arguments.debug:
             traceback.print_exc()
         sys.exit(1)

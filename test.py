@@ -1,13 +1,14 @@
+import logging
 import unittest
 from snippet import Config, Snippet, app_name, home_config_path, app_config_path
 
 config = Config(app_name, [home_config_path, app_config_path])
 logger = config.logger
+logger.set_level(logging.DEBUG)
 
 
 def new_snippet(format_string, arguments):
     s = Snippet(config)
-    s.verbose = True
     s.format_string = format_string
     s.arguments = arguments
     return s.build()
