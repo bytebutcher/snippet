@@ -148,10 +148,10 @@ class PlaceholderFormatParser:
         def _parse_part(part, i) -> list:
             return list(
                 OrderedDict.fromkeys(
-                    PlaceholderFormat("<" + placeholder_format + ">", i == 0)
+                    PlaceholderFormat(placeholder_format, i == 0)
                         for placeholder_format in
                             re.findall(
-                                r"<(\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?)>",
+                                r"(<\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?>)",
                                        EscapedBracketCodec.encode(part, opener, closer) or "")))
 
         return _parse_parts(ParenthesesParser().parse(format_string))
