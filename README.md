@@ -11,12 +11,8 @@ $ snippet -e archive/extract-tgz -f 'tar -xzvf <archive>'
 # Edit a snippet (will open vim)
 $ snippet -e archive/extract-tgz
 
-# View a snippet
-$ snippet -t archive/extract-tgz -v
-tar -xvf <archive>
-
-# Search a snippet which include the term "extract" (will open fzf)
-$ snippet -t extract -v
+# Search and use a snippet which include the term "extract" (will open fzf)
+$ snippet -t extract
 
 # Fill snippet with a value
 $ snippet -t archive/extract-tgz /path/to/foo.tar.gz
@@ -292,12 +288,4 @@ hello snippet
 ## See also
 
 To make the most out of this tool you might also consider to look into the following projects:
-* [leval](https://github.com/bytebutcher/leval) - the lesser eval
-* [interactive](https://github.com/bytebutcher/interactive) - make arbitrary commands interactive
 * [bgl](https://github.com/bytebutcher/bgl) - manage global bash environment variables
-
-Here is a rather advanced example of how ```interactive```, ```leval``` and ```snippet``` play together:
-```
-# Make snippet interactive and evaluate output using leval before executing it
-$ interactive -p "leval --print-stdout" snippet -f "[format]" [args]
-```

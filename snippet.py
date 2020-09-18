@@ -204,12 +204,24 @@ class FormatStringParser:
 
     Examples:
 
-        FORMAT_STRING = 'A <arg1> B'
-        ARGUMENTS     = { 'arg1': ['123', '456] }
+        # Value assigned via arguments includes optional part.
+        FORMAT_STRING = 'A <arg> B'
+        ARGUMENTS     = { 'arg': ['123', '456] }
         RESULT        = 'A <arg> B'
 
+        # No value assigned removes optional part.
         FORMAT_STRING = 'A[ <arg1> ]B'
         ARGUMENTS     = {}
+        RESULT        = 'AB'
+
+        # Value assigned via default specification includes optional part.
+        FORMAT_STRING = 'A[ <arg=value> ]B'
+        ARGUMENTS     = {}
+        RESULT        = 'A <arg> B'
+
+        # Value assigned via default but empty value assigned via arguments removes optional part.
+        FORMAT_STRING = 'A[ <arg=value> ]B'
+        ARGUMENTS     = { 'arg': [''] }
         RESULT        = 'AB'
 
     """
@@ -841,10 +853,9 @@ class Snippet(object):
             if format_string:
                 with open(home_template_file, 'w') as f:
                     f.write(format_string)
-                self.logger.info("Successfully created template '{}'!".format(template_name))
-            else:
-                subprocess.call((self.config.editor, home_template_file))
 
+            subprocess.call((self.config.editor, home_template_file))
+            self.logger.info("Successfully created template '{}'!".format(template_name))
         except:
             raise Exception("Creating template '{}' failed!".format(template_name))
 
