@@ -1,0 +1,1 @@
+from snippet.snippet import main

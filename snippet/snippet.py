@@ -46,26 +46,28 @@ class Logger:
         self._handler = logging.StreamHandler(sys.stderr)
         self._handler.setFormatter(logging.Formatter(log_format))
         self._logger.addHandler(self._handler)
-        self.set_level(level)
+        self._set_level(level)
 
-    def set_level(self, level):
+    def _set_level(self, level):
         self._logger.setLevel(level)
         self._handler.setLevel(level)
 
-    def get_level(self):
-        return logging.root.level
+    def _get_level(self):
+        return self._logger.level
 
     def info(self, msg):
         self._logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
 
     def debug(self, msg):
-        self._logger.debug(colorize("DEBUG: ", Fore.LIGHTBLACK_EX) + msg)
+        self._logger.debug(colorize("DEBUG: {}".format(msg), Fore.LIGHTBLACK_EX))
 
     def warning(self, msg):
         self._logger.warning(colorize(" WARN: ", Fore.LIGHTYELLOW_EX) + msg)
 
     def error(self, msg):
         self._logger.info(colorize("ERROR: ", Fore.RED) + msg)
+
+    level = property(fset=_set_level, fget=_get_level)
 
 
 class EscapedBracketCodec:
@@ -200,7 +202,9 @@ class ParenthesesParser:
 
 class FormatStringParser:
     """
-    Parses a format string and removes placeholders inside square brackets which do not have a value assigned.
+    Minimizes a format string by removing optional placeholders inside square brackets which do not have a value
+    assigned nor a default value. The resulting format string does not contain square brackets anymore except those
+    which were escaped by the user.
 
     Examples:
 
@@ -210,7 +214,7 @@ class FormatStringParser:
         RESULT        = 'A <arg> B'
 
         # No value assigned removes optional part.
-        FORMAT_STRING = 'A[ <arg1> ]B'
+        FORMAT_STRING = 'A[ <arg> ]B'
         ARGUMENTS     = {}
         RESULT        = 'AB'
 
@@ -223,6 +227,16 @@ class FormatStringParser:
         FORMAT_STRING = 'A[ <arg=value> ]B'
         ARGUMENTS     = { 'arg': [''] }
         RESULT        = 'AB'
+
+        # No optional parts returns original format string.
+        FORMAT_STRING = 'A <arg> B'
+        ARGUMENTS     = {}
+        RESULT        = 'A <arg> B'
+
+        # No placeholders returns original format string.
+        FORMAT_STRING = 'A B'
+        ARGUMENTS     = {}
+        RESULT        = 'A B'
 
     """
     def __init__(self, config):
@@ -262,7 +276,7 @@ class FormatStringParser:
                     has_empty_argument = placeholder.name in arguments and not arguments[placeholder.name]
                     if has_empty_argument and not required:
                         # Ignore argument if it is empty and optional.
-                        # $ snippet -f "a<arg>b" arg=
+                        # $ snippet -f "a[<arg>]b" arg=
                         self._logger.debug("{}: Empty argument supplied and optional.".format(placeholder.name))
                         return []
                 result.append(part)
@@ -662,9 +676,9 @@ class DataBuilder(object):
         repeatable_placeholders = {}
         placeholder_names = list(temporary_data.keys())
         for placeholder_name in placeholder_names:
-            # Get all placeholders specified in the string format which have the same name.
+            # Get all placeholders specified in the format string which have the same name.
             _p = [p for p in self.get_placeholders() if p.name == placeholder_name]
-            # Get all placeholders specified in the string format which are repeatable and have the same name.
+            # Get all placeholders specified in the format string which are repeatable and have the same name.
             _r = [p for p in _p if p.repeatable]
             is_repeatable = len(_r) > 0
             if is_repeatable:
@@ -956,7 +970,7 @@ class Snippet(object):
     arguments = property(_get_arguments, _set_arguments)
 
 
-def __main__():
+def main():
     config = Config(app_name, [home_config_path, app_config_path])
     logger = config.logger
     snippet = Snippet(config)
@@ -1042,7 +1056,7 @@ def __main__():
                         help="Shows all environment variables.")
     parser.add_argument('-q', '--quiet', action="store_false",
                         dest='verbose',
-                        help="Do not print additional information (e.g. string format, template, ...).")
+                        help="Do not print additional information (e.g. format string, template, ...).")
     parser.add_argument('-d', '--debug', action="store_true",
                         dest='debug',
                         help="Prints additional debug information (e.g. stack traces).")
@@ -1051,11 +1065,11 @@ def __main__():
     arguments = parser.parse_args()
 
     if arguments.debug:
-        config.logger.set_level(logging.DEBUG)
+        config.logger.level = logging.DEBUG
     elif arguments.verbose:
-        config.logger.set_level(logging.INFO)
+        config.logger.level = logging.INFO
     else:
-        config.logger.set_level(logging.ERROR)
+        config.logger.level = logging.ERROR
 
     try:
         if arguments.edit:
@@ -1129,4 +1143,4 @@ def __main__():
 
 
 if __name__ == '__main__':
-    __main__()
+    main()
