@@ -69,8 +69,8 @@ pip3 install snippet
 git clone https://github.com/bytebutcher/snippet
 cd snippet
 python3 -m venv venv
-./venv/bin/python3 install -r requirements.txt
-sudo ln -s $PWD/snippet /usr/bin/snippet
+./venv/bin/pip3 install -r requirements.txt
+ln -s $PWD/runner ~/.local/bin/snippet
 ```
 
 ### Bash Completion
