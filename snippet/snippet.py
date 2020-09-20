@@ -901,13 +901,19 @@ class Snippet(object):
             return sorted(self.config.codecs.keys())
 
     def list_environment(self):
+        result = []
         temporary_data = Data()
         for placeholder in self.data.keys():
             temporary_data[placeholder] = self.data[placeholder]
         reserved_placeholder_values = self.config.get_reserved_placeholder_values()
         for placeholder in reserved_placeholder_values.keys():
             temporary_data[placeholder] = reserved_placeholder_values[placeholder]
-        return tabulate(temporary_data.to_data_frame(), headers="keys")
+        for placeholder, values in temporary_data.items():
+            if len(values) == 1:
+                result.append("export {}=\"{}\"".format(placeholder, values[0]))
+            else:
+                result.append("export {}=\"\\('{}'\\)\"".format(placeholder, "' '".join(values)))
+        return result
 
     def list_placeholders(self):
         """ Returns all the placeholders found in the format string. """
@@ -948,23 +954,26 @@ class Snippet(object):
             if data and placeholder not in reserved_placeholders:
                 self.data.append(placeholder, data)
 
-        for placeholder in placeholders:
-            # Do not load upper case environment variables to prevent users from getting into the habit of
-            # defining upper case environment variables and messing up their environment.
-            # In addition loading upper case environment variables may result in loading unwanted/pre-defined
-            # values.
-            data = os.environ.get(placeholder) # or os.environ.get(placeholder.upper())
-            if data:
-                if mode == Snippet.ImportEnvironmentMode.default:
-                    # Only set environment data when not already defined
-                    if placeholder not in self.data:
-                        _import_environment(placeholder, data)
-                elif mode == Snippet.ImportEnvironmentMode.append:
+        for placeholder, data in os.environ.items():
+            if not placeholder.islower() or placeholder.startswith("_"):
+                # Do not load upper case environment variables to prevent users from getting into the habit of
+                # defining upper case environment variables and messing up their environment.
+                # In addition loading upper case environment variables may result in loading unwanted/pre-defined
+                # values.
+                # Do not load placeholders which start with underscore as these are usually private variables used
+                # by other applications.
+                continue
+
+            if mode == Snippet.ImportEnvironmentMode.default:
+                # Only set environment data when not already defined
+                if placeholder not in self.data:
                     _import_environment(placeholder, data)
-                elif mode == Snippet.ImportEnvironmentMode.replace:
-                    if placeholder not in reserved_placeholders:
-                        self.data[placeholder] = []
-                        _import_environment(placeholder, data)
+            elif mode == Snippet.ImportEnvironmentMode.append:
+                _import_environment(placeholder, data)
+            elif mode == Snippet.ImportEnvironmentMode.replace:
+                if placeholder not in reserved_placeholders:
+                    self.data[placeholder] = []
+                    _import_environment(placeholder, data)
 
     def build(self):
         return DataBuilder(self._get_format_string(), self.data, self.codec_formats, self.config).build()
@@ -1126,7 +1135,8 @@ def main():
         snippet.import_environment(Snippet.ImportEnvironmentMode.default)
 
         if arguments.environment:
-            print(snippet.list_environment())
+            for line in snippet.list_environment():
+                print(line)
             sys.exit(0)
 
         if not snippet.format_string:

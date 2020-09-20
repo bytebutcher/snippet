@@ -1,11 +1,8 @@
 import logging
 import unittest
-from snippet import Config, Snippet, app_name, home_config_path, app_config_path
+from snippet.snippet import Config, Snippet, app_name, home_config_path, app_config_path
 
-config = Config(app_name, [home_config_path, app_config_path])
-logger = config.logger
-logger.set_level(logging.DEBUG)
-
+config = Config(app_name, [home_config_path, app_config_path], logging.DEBUG)
 
 def new_snippet(format_string, arguments):
     s = Snippet(config)
