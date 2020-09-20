@@ -31,6 +31,7 @@ setup(
         'tabulate==0.8.7',
         'colorama==0.4.3'
     ],
+	include_package_data=True,
     entry_points={
         "console_scripts": [
             "snippet=snippet:main",

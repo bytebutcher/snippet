@@ -1,5 +1,5 @@
 #!/bin/bash
-APP_NAME="$(basename "${BASH_SOURCE}" ".sh")"
+APP_NAME="snippet"
 APP_PATH="$(dirname "$(readlink -f "$0")")"
 VENV_PATH="${APP_PATH}/venv"
 VENV_PYTHON="${VENV_PATH}/bin/python3"
