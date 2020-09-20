@@ -61,7 +61,7 @@ You can either install snippet via ```pip``` or directly from source.
 ### Pip
 
 ```
-pip3 install snippet
+pip3 install snippet-cli
 ```
 
 ### Source

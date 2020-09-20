@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 
 # This call to setup() does all the work
 setup(
-    name="snippet",
+    name="snippet-cli",
     version="1.0.0",
     description="An advanced snippet manager for the command-line.",
     long_description=README,
