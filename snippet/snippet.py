@@ -24,7 +24,6 @@ from iterfzf import iterfzf
 from tabulate import tabulate
 
 app_name = "snippet"
-app_version = "1.0z"
 
 # Configuration files
 # ===================
@@ -394,19 +393,21 @@ class Codec(object):
 
 class Config(object):
 
-    def __init__(self, app_name, paths):
+    def __init__(self, app_name, paths, log_level):
         self.paths = paths
         self.format_template_paths = [os.path.join(path, "templates") for path in paths]
         self.codec_paths = [os.path.join(path, "codecs") for path in paths]
-        self.logger = Logger(app_name, "%(msg)s", logging.ERROR)
+        self.logger = Logger(app_name, "%(msg)s", log_level)
         self.profile = self._load_profile()
         self.codecs = self._load_codecs()
         self._reserved_placeholder_values = []
 
     def _load_profile(self):
         for profile_path in self.paths:
-            if os.path.exists(profile_path):
+            profile_file = os.path.join(profile_path, "snippet_profile" + ".py")
+            if os.path.exists(profile_file):
                 try:
+                    self.logger.debug("Loading profile at {} ...".format(profile_path))
                     # Since the path may contain special characters which can not be processed by the __import__
                     # function we temporary add the path in which the profile.py is located to the PATH.
                     sys.path.append(profile_path)
@@ -414,7 +415,7 @@ class Config(object):
                     sys.path.pop()
                     return profile
                 except:
-                    pass
+                    self.logger.warning("Loading profile at {} failed!".format(profile_path))
         return None
 
     def _load_codecs(self):
@@ -435,12 +436,14 @@ class Config(object):
 
                 for dir in dirs:
                     sys.path.append(os.path.join(codec_path, dir))
-                    for r, d, f in os.walk(os.path.join(codec_path, dir)):
+                    filepath = os.path.join(codec_path, dir)
+                    for r, d, f in os.walk(filepath):
                         for file in f:
                             filename, ext = os.path.splitext(file)
                             if ext == ".py":
                                 classname = str(_to_camel_case(filename))
                                 try:
+                                    self.logger.debug("Loading codec {} at {}...".format(filename, filepath))
                                     codecs[filename] = getattr(__import__(filename), classname)()
                                 except Exception:
                                     self.logger.warning("Loading codec {} failed!".format(filename))
@@ -971,7 +974,8 @@ class Snippet(object):
 
 
 def main():
-    config = Config(app_name, [home_config_path, app_config_path])
+    log_level = logging.DEBUG if "--debug" in sys.argv or "-d" in sys.argv else logging.WARN
+    config = Config(app_name, [home_config_path, app_config_path], log_level)
     logger = config.logger
     snippet = Snippet(config)
 
@@ -1069,7 +1073,7 @@ def main():
     elif arguments.verbose:
         config.logger.level = logging.INFO
     else:
-        config.logger.level = logging.ERROR
+        config.logger.level = logging.WARN
 
     try:
         if arguments.edit:

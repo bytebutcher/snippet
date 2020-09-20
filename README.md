@@ -56,24 +56,10 @@ tar -czvf '/path/to/foo.tar.gz' 'foo' 'bar'
 
 ## Setup
 
-You can either install snippet via ```pip``` or directly from source.
-
-### Pip
-
 ```
 pip3 install snippet-cli
 ```
 
-### Source
-```
-git clone https://github.com/bytebutcher/snippet
-cd snippet
-python3 -m venv venv
-./venv/bin/pip3 install -r requirements.txt
-ln -s $PWD/runner ~/.local/bin/snippet
-```
-
-### Bash Completion
 To enable bash-completion you might add following line to your .bashrc:
 ```bash
 eval "$(register-python-argcomplete3 snippet)"

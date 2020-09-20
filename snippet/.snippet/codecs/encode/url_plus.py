@@ -1,4 +1,4 @@
-from snippet import Codec
+from snippet.snippet import Codec
 
 
 class UrlPlus(Codec):

@@ -1,3 +1,4 @@
+import os
 import pathlib
 import setuptools
 from setuptools import setup
@@ -8,10 +9,21 @@ HERE = pathlib.Path(__file__).parent
 # The text of the README file
 README = (HERE / "README.md").read_text()
 
+def package_files(directory):
+    paths = []
+    for (path, directories, filenames) in os.walk(directory):
+        for filename in filenames:
+            if '__pycache__' not in path and not filename.endswith('.pyc'):
+                paths.append(os.path.join('..', path, filename))
+    return paths
+
+# The directory containing the profile and codecs
+extra_files = package_files('snippet/.snippet')
+
 # This call to setup() does all the work
 setup(
     name="snippet-cli",
-    version="1.0.0",
+    version="1.0.5",
     description="An advanced snippet manager for the command-line.",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -24,6 +36,8 @@ setup(
         "Operating System :: OS Independent"
     ],
     packages=setuptools.find_packages(),
+    package_data={'snippet': extra_files},
+	include_package_data=True,
     install_requires=[
         'pyparsing==2.4.6',
         'argcomplete==1.11.1',
@@ -31,7 +45,6 @@ setup(
         'tabulate==0.8.7',
         'colorama==0.4.3'
     ],
-	include_package_data=True,
     entry_points={
         "console_scripts": [
             "snippet=snippet:main",
