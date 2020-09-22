@@ -37,6 +37,13 @@ def colorize(string: str, color):
     """ Colorize a string. """
     return color + string + Style.RESET_ALL
 
+def safe_join_path(*argv):
+    """
+    os.path.join does ignore everything prior to a component starting with a slash.
+    This implementation does consider all components and normalizes the path.
+    """
+    return os.path.normpath(os.sep.join(argv))
+
 
 class Logger:
 
@@ -153,7 +160,7 @@ class PlaceholderFormatParser:
                         for placeholder_format in
                             re.findall(
                                 r"(<\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?>)",
-                                       EscapedBracketCodec.encode(part, opener, closer) or "")))
+                                EscapedBracketCodec.encode(part, opener, closer) or "")))
 
         return _parse_parts(ParenthesesParser().parse(format_string))
 
@@ -395,8 +402,8 @@ class Config(object):
 
     def __init__(self, app_name, paths, log_level):
         self.paths = paths
-        self.format_template_paths = [os.path.join(path, "templates") for path in paths]
-        self.codec_paths = [os.path.join(path, "codecs") for path in paths]
+        self.format_template_paths = [safe_join_path(path, "templates") for path in paths]
+        self.codec_paths = [safe_join_path(path, "codecs") for path in paths]
         self.logger = Logger(app_name, "%(msg)s", log_level)
         self.profile = self._load_profile()
         self.codecs = self._load_codecs()
@@ -404,7 +411,7 @@ class Config(object):
 
     def _load_profile(self):
         for profile_path in self.paths:
-            profile_file = os.path.join(profile_path, "snippet_profile" + ".py")
+            profile_file = safe_join_path(profile_path, "snippet_profile" + ".py")
             if os.path.exists(profile_file):
                 try:
                     self.logger.debug("Loading profile at {} ...".format(profile_path))
@@ -435,8 +442,8 @@ class Config(object):
                             dirs.append(dir)
 
                 for dir in dirs:
-                    sys.path.append(os.path.join(codec_path, dir))
-                    filepath = os.path.join(codec_path, dir)
+                    sys.path.append(safe_join_path(codec_path, dir))
+                    filepath = safe_join_path(codec_path, dir)
                     for r, d, f in os.walk(filepath):
                         for file in f:
                             filename, ext = os.path.splitext(file)
@@ -457,11 +464,11 @@ class Config(object):
 
         if format_template_name.endswith(".snippet"):
             # Consider template files in the current working directory.
-            format_template_file = os.path.join(os.getcwd(), format_template_name)
+            format_template_file = safe_join_path(os.getcwd(), format_template_name)
             return format_template_file if os.path.isfile(format_template_file) else None
 
         for format_template_path in self.format_template_paths:
-            format_template_file = os.path.join(format_template_path, format_template_name)
+            format_template_file = safe_join_path(format_template_path, format_template_name)
             if os.path.isfile(format_template_file):
                 return format_template_file
 
@@ -504,7 +511,7 @@ class Config(object):
                     for file in f:
                         if list(filter(lambda x: file.lower().endswith(x), exclude_extensions)):
                             continue
-                        format_template_files.append(os.path.join(relpath, file))
+                        format_template_files.append(safe_join_path(relpath, file))
 
         # Also consider files in the local directory which ends with .snippet.
         for file in os.listdir(os.fsencode(os.getcwd())):
@@ -849,8 +856,8 @@ class Snippet(object):
         return self.data
 
     def create_or_edit_template(self, template_name, format_string):
-        home_template_path = os.path.join(home_config_path, "templates")
-        home_template_file = os.path.join(home_template_path, template_name)
+        home_template_path = safe_join_path(home_config_path, "templates")
+        home_template_file = safe_join_path(home_template_path, template_name)
 
         if os.path.isfile(home_template_file):
             # Edit existing file in home path
@@ -858,8 +865,8 @@ class Snippet(object):
             return
 
         try:
-            app_template_path = os.path.join(app_config_path, "templates")
-            app_template_file = os.path.join(app_template_path, template_name)
+            app_template_path = safe_join_path(app_config_path, "templates")
+            app_template_file = safe_join_path(app_template_path, template_name)
             home_template_dir = os.path.dirname(home_template_file)
             os.makedirs(home_template_dir, exist_ok=True)
             if os.path.isfile(app_template_file):
