@@ -118,7 +118,8 @@ class FormatArgumentParser:
     def _parse_placeholder_value(self, placeholder: str, value: str) -> dict:
         return {placeholder: value}
 
-    def _parse_placeholder_file(self, placeholder: str, file: str) -> dict:
+    def _parse_placeholder_file(self, placeholder: str, value: str) -> dict:
+        file = os.path.expanduser(value)
         if not os.path.isfile(file):
             raise Exception(
                 "Parsing placeholder '{}' failed! The file '{}' was not found!".format(placeholder, file))
