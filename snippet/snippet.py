@@ -45,6 +45,23 @@ def safe_join_path(*argv):
     return os.path.normpath(os.sep.join(argv))
 
 
+def select_line(lines, query=None):
+    """ Select format string from list of lines using iterfzf. """
+    lines = [colorize(line, Fore.BLUE) if line.startswith("#") else line for line in lines.splitlines()]
+    if len(lines) > 1:
+        return iterfzf(reversed(lines), query=query, multi=True, ansi=True)
+    else:
+        return lines
+
+
+def print_line(line):
+    """ Color printing a line of the (evaluated) format string regarding comments. """
+    if line.startswith("#"):
+        print(colorize(line, Fore.BLUE), file=sys.stderr)
+    else:
+        print(line)
+
+
 class Logger:
 
     def __init__(self, app_id, log_format, level):
@@ -150,7 +167,7 @@ class PlaceholderFormatParser:
                     for placeholder in _parse_part(part, i):
                         result.append(placeholder)
                 elif isinstance(part, list):
-                    for placeholder in _parse_parts(part, i+1):
+                    for placeholder in _parse_parts(part, i + 1):
                         result.append(placeholder)
             return result
 
@@ -257,15 +274,27 @@ class FormatStringParser:
         :param arguments: a dictionary with argument names as key and booleans as value.
                           The boolean value specifies whether the argument is non-empty (True = non-empty).
         """
-        parentheses = ParenthesesParser().parse(format_string)
-        if not parentheses:
-            self._logger.debug("No optional arguments found in format string.")
-            return format_string
-        essentials = self._remove_optionals(parentheses, arguments)
-        if not essentials:
-            self._logger.debug("Not all essential arguments are set.")
-            return format_string
-        return "".join(self._flatten_list(essentials))
+        lines = []
+        for line in format_string.splitlines():
+            if line.startswith("#"):
+                lines.append(line)
+                continue
+
+            parentheses = ParenthesesParser().parse(line)
+            if not parentheses:
+                self._logger.debug("No optional arguments found in format string.")
+                lines.append(format_string)
+                continue
+
+            essentials = self._remove_optionals(parentheses, arguments)
+            if not essentials:
+                self._logger.debug("Not all essential arguments are set.")
+                lines.append(format_string)
+                continue
+
+            lines.append("".join(self._flatten_list(essentials)))
+
+        return os.linesep.join(lines)
 
     def _remove_optionals(self, parts, arguments, required=True):
         result = []
@@ -536,13 +565,8 @@ class Config(object):
                 comments = []
                 lines = []
                 for line in f.read().splitlines():
-                    if line.startswith("#"):
-                        comment = line[1:].strip()
-                        if comment:
-                            comments.append(comment)
-                    else:
-                        lines.append(line)
-                return format_template_name, os.linesep.join(comments), os.linesep.join(lines)
+                    lines.append(line)
+                return format_template_name, os.linesep.join(lines)
         except:
             raise Exception("Loading {} failed! Invalid template format!".format(format_template_name or "template"))
 
@@ -622,16 +646,14 @@ class DataBuilder(object):
         self.data = data
         self.config = config
         self.codec_formats = codec_formats
-        self._format_string_original = format_string
-        self._format_string_minified = self._parse_format_string(format_string)
-        self._placeholders = PlaceholderFormatParser().parse(self._format_string_minified)
-        for placeholder in self._placeholders:
-            for codec in placeholder.codecs:
-                if codec not in self.config.codecs:
-                    raise Exception(
-                        "Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
+        self._format_string = format_string
+        self._format_string_minified = self._minify_format_string(format_string)
+        self._placeholders = PlaceholderFormatParser().parse(self._remove_comments(self._format_string_minified))
 
-    def _parse_format_string(self, format_string):
+    def _remove_comments(self, string):
+        return os.linesep.join([line for line in string.splitlines() if not line.startswith("#")])
+
+    def _minify_format_string(self, format_string):
         """
         Initializes the format string.
 
@@ -639,7 +661,7 @@ class DataBuilder(object):
         snippet system (e.g. reserved placeholders).
         """
         # Collect defaults and set them if no value was assigned.
-        for placeholder in PlaceholderFormatParser().parse(format_string):
+        for placeholder in PlaceholderFormatParser().parse(self._remove_comments(format_string)):
             if placeholder.default is not None and placeholder.name not in self.data.keys():
                 self.data.append(placeholder.name, placeholder.default)
 
@@ -758,13 +780,19 @@ class DataBuilder(object):
 
             placeholders = self.get_placeholders()
             for placeholder in placeholders:
+                for codec in placeholder.codecs:
+                    if codec not in self.config.codecs:
+                        raise Exception(
+                            "Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
+
+            for placeholder in placeholders:
                 if placeholder.name not in self.data.keys() and placeholder.default:
                     self.data.append(placeholder.name, placeholder.default)
 
             data_frame = self.transform_data()
 
             # Print all placeholders and the assigned values (verbose).
-            for line in PlaceholderValuePrintFormatter.build(self._format_string_original, data_frame):
+            for line in PlaceholderValuePrintFormatter.build(self._remove_comments(self._format_string), data_frame):
                 self.config.logger.info(line)
 
             # Get all required placeholders which are not assigned. Also consider repeatables (see transform_data).
@@ -787,7 +815,14 @@ class DataBuilder(object):
                     for placeholder in self.get_placeholders():
                         row = data_frame[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
                         value = self._apply_codecs(row[i], placeholder)
-                        output_line = output_line.replace("<" + placeholder.format_string + ">", self._escape_brackets(value))
+                        lines = []
+                        for line in output_line.splitlines():
+                            if line.startswith("#"):
+                                lines.append(line)
+                            else:
+                                lines.append(line.replace(
+                                    "<" + placeholder.format_string + ">", self._escape_brackets(value)))
+                        output_line = os.linesep.join(lines)
 
                     result.append(output_line)
 
@@ -813,10 +848,10 @@ class Snippet(object):
 
     def _set_format_string(self, format_string):
         if format_string:
-            self.logger.info(colorize("Format:", Fore.YELLOW))
-            for line in format_string.split(os.linesep):
-                self.logger.info(colorize("   {}".format(line), Fore.WHITE))
-            self._format_string = format_string
+            if isinstance(format_string, list):
+                self._format_string = os.linesep.join(format_string)
+            else:
+                self._format_string = format_string
 
     def _set_arguments(self, data_values):
         placeholder = None
@@ -885,14 +920,10 @@ class Snippet(object):
             raise Exception("Creating template '{}' failed!".format(template_name))
 
     def use_template(self, template_name):
-        format_template_name, comments, format_string = self.config.get_format_template(template_name)
+        format_template_name, format_string = self.config.get_format_template(template_name)
         self.logger.info(colorize("Template:", Fore.YELLOW))
         self.logger.info(colorize("   {}".format(format_template_name), Fore.WHITE))
-        if comments:
-            self.logger.info(colorize("Notes:", Fore.YELLOW))
-            for comment in comments.split(os.linesep):
-                self.logger.info(colorize("   {}".format(comment), Fore.WHITE))
-        self.format_string = format_string
+        return format_string
 
     def list_templates(self, filter_string=None):
         template_names = self.config.get_format_template_names()
@@ -904,7 +935,7 @@ class Snippet(object):
     def list_codecs(self, filter_string=None):
         if filter_string:
             return sorted([codec_name for codec_name in self.config.codecs.keys() if
-                    filter_string in self.config.codecs.keys()])
+                           filter_string in self.config.codecs.keys()])
         else:
             return sorted(self.config.codecs.keys())
 
@@ -984,6 +1015,12 @@ class Snippet(object):
                     _import_environment(placeholder, data)
 
     def build(self):
+        self.logger.info(colorize("Format:", Fore.YELLOW))
+        for line in self.format_string.split(os.linesep):
+            if line.startswith("#"):
+                self.logger.info(colorize("   {}".format(line), Fore.BLUE))
+            else:
+                self.logger.info(colorize("   {}".format(line), Fore.WHITE))
         return DataBuilder(self._get_format_string(), self.data, self.codec_formats, self.config).build()
 
     format_string = property(_get_format_string, _set_format_string)
@@ -1125,27 +1162,28 @@ def main():
         if arguments.template_name and not sys.stdin.isatty():
             raise Exception("--template can not be used in conjunction with piped input!")
 
-        if arguments.format_string:
-            snippet.format_string = arguments.format_string
-
+        format_string = arguments.format_string
         if arguments.template_name:
             snippet.use_template(arguments.template_name)
 
         if not sys.stdin.isatty():
-            snippet.format_string = sys.stdin.readline().rstrip()
+            format_string = "".join(sys.stdin.readlines())
 
-        if not snippet.format_string:
-            snippet.format_string = os.environ.get("FORMAT_STRING")
+        if not format_string:
+            format_string = os.environ.get("FORMAT_STRING")
 
-        if arguments.data_values:
-            snippet.arguments = arguments.data_values
+        snippet.format_string = format_string
+        if snippet.format_string:
 
-        snippet.import_environment(Snippet.ImportEnvironmentMode.default)
+            if arguments.data_values:
+                snippet.arguments = arguments.data_values
 
-        if arguments.environment:
-            for line in snippet.list_environment():
-                print(line)
-            sys.exit(0)
+            snippet.import_environment(Snippet.ImportEnvironmentMode.default)
+
+            if arguments.environment:
+                for line in snippet.list_environment():
+                    print(line)
+                sys.exit(0)
 
         if not snippet.format_string:
             parser.print_usage(file=sys.stderr)
@@ -1154,8 +1192,7 @@ def main():
         for lines in snippet.build():
             # Handle format strings with line separators
             for line in lines.split(os.linesep):
-                print(line)
-
+                print_line(line)
         sys.exit(0)
     except Exception as e:
         logger.error(str(e))
