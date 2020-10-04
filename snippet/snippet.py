@@ -1164,7 +1164,7 @@ def main():
 
         format_string = arguments.format_string
         if arguments.template_name:
-            snippet.use_template(arguments.template_name)
+            format_string = snippet.use_template(arguments.template_name)
 
         if not sys.stdin.isatty():
             format_string = "".join(sys.stdin.readlines())
