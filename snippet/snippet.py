@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import json
+from inspect import signature
 
 import argcomplete, argparse
 
-from collections import defaultdict, OrderedDict
-from enum import Enum
+from collections import defaultdict, OrderedDict, namedtuple
 
 import os
 import sys
@@ -18,10 +18,10 @@ import traceback
 import re
 import itertools
 import shlex
+import pyparsing as pp
 
 from colorama import Fore, Style
 from iterfzf import iterfzf
-from tabulate import tabulate
 
 app_name = "snippet"
 
@@ -33,9 +33,24 @@ app_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".sn
 home_config_path = os.path.join(str(Path.home()), ".snippet")
 
 
+def log_format_string(format_string, logger):
+    logger.info(colorize("Format:", Fore.YELLOW))
+    for line in format_string.split(os.linesep):
+        if line.startswith("#"):
+            logger.info(colorize("   {}".format(line), Fore.BLUE))
+        else:
+            logger.info(colorize("   {}".format(line), Fore.WHITE))
+
+
+def log_format_template(format_template_name, logger):
+    logger.info(colorize("Template:", Fore.YELLOW))
+    logger.info(colorize("   {}".format(format_template_name), Fore.WHITE))
+
+
 def colorize(string: str, color):
     """ Colorize a string. """
     return color + string + Style.RESET_ALL
+
 
 def safe_join_path(*argv):
     """
@@ -43,6 +58,18 @@ def safe_join_path(*argv):
     This implementation does consider all components and normalizes the path.
     """
     return os.path.normpath(os.sep.join(argv))
+
+
+def replace_within(string: str, replacement: str, start: int, end: int) -> str:
+    """
+    Return a copy of string with text replaced within the range of position start and end with the replacement string.
+
+    string: the base string.
+    replacement: the text which serves as replacement.
+    start: the start position of the range with 0 <= start < len(text) && start <= end.
+    end: the end position of the range with 0 <= end < len(text).
+    """
+    return string[:start] + replacement + string[end:]
 
 
 def select_line(lines, query=None):
@@ -104,7 +131,7 @@ class EscapedBracketCodec:
         return str.replace(chr(14), '\\' + opener).replace(chr(15), '\\' + closer)
 
 
-class FormatArgumentParser:
+class ArgumentFormatParser:
     """
     A argument may have the following format*:
 
@@ -158,6 +185,34 @@ class FormatArgumentParser:
 class PlaceholderFormatParser:
     """ Parses a format string into a list of placeholders. """
 
+    # A set of tokens
+    LT, GT, EQ, PIPE, COLON = map(pp.Suppress, "<>=|:")
+
+    # A quoted string. Nothing special about that
+    quoted_string = pp.QuotedString('\'') | pp.QuotedString('"')
+
+    # Defines how a placeholder name or codec name should look like
+    name = pp.Word(pp.alphas, pp.alphanums + "_")
+
+    # Defines how a placeholder can be marked as repeatable
+    repeatable = pp.Combine("...").setResultsName("repeatable")
+
+    # Defines how codecs and their arguments can be specified
+    codecs = pp.ZeroOrMore(pp.Group(PIPE + (name + pp.ZeroOrMore(COLON + quoted_string)))).setResultsName("codecs")
+
+    # Defines how a default value can be specified
+    default = pp.Combine(EQ + quoted_string).setResultsName("default")
+
+    # Defines how a placeholder format should look like
+    placeholder_format = pp.Combine(
+        LT + \
+        name.setResultsName("name").leaveWhitespace() + \
+        pp.Optional(repeatable).leaveWhitespace() + \
+        pp.Optional(codecs).leaveWhitespace() + \
+        pp.Optional(default).leaveWhitespace() + \
+        GT
+    )
+
     def parse(self, format_string, opener="<", closer=">") -> list:
 
         def _parse_parts(parts, i=0) -> list:
@@ -175,10 +230,8 @@ class PlaceholderFormatParser:
             return list(
                 OrderedDict.fromkeys(
                     PlaceholderFormat(placeholder_format, i == 0)
-                        for placeholder_format in
-                            re.findall(
-                                r"(<\w+?[:\w+]*(?:[^A-Za-z0-9]?\.\.\.)?(?:=[^>]+)?>)",
-                                EscapedBracketCodec.encode(part, opener, closer) or "")))
+                    for placeholder_format in self.placeholder_format.scanString(
+                        EscapedBracketCodec.encode(part, opener, closer) or "")))
 
         return _parse_parts(ParenthesesParser().parse(format_string))
 
@@ -243,12 +296,12 @@ class FormatStringParser:
         RESULT        = 'AB'
 
         # Value assigned via default specification includes optional part.
-        FORMAT_STRING = 'A[ <arg=value> ]B'
+        FORMAT_STRING = 'A[ <arg='value'> ]B'
         ARGUMENTS     = {}
         RESULT        = 'A <arg> B'
 
         # Value assigned via default but empty value assigned via arguments removes optional part.
-        FORMAT_STRING = 'A[ <arg=value> ]B'
+        FORMAT_STRING = 'A[ <arg='value'> ]B'
         ARGUMENTS     = { 'arg': [''] }
         RESULT        = 'AB'
 
@@ -263,6 +316,7 @@ class FormatStringParser:
         RESULT        = 'A B'
 
     """
+
     def __init__(self, config):
         self._logger = config.logger
 
@@ -306,7 +360,7 @@ class FormatStringParser:
                     if not_defined:
                         # Ignore argument if it is not defined nor a default value is set.
                         # $ snippet -f  "<arg>"             # ignore
-                        # $ snippet -f  "<arg=default>"     # do not ignore
+                        # $ snippet -f  "<arg='default'>"   # do not ignore
                         self._logger.debug("{}: No argument defined.".format(placeholder.name))
                         return []
                     has_empty_argument = placeholder.name in arguments and not arguments[placeholder.name]
@@ -334,56 +388,28 @@ class FormatStringParser:
 
 
 class PlaceholderFormat:
-    """
-    A placeholder does have the following format*:
+    """ An object representation of a placeholder. """
 
-        <NAME{:CODEC}~{{SEPARATOR}...}{=DEFAULT}>
-
-        NAME (required)      = The name of the placeholder (\w).
-        CODEC (optional)     = A ist of codecs which should be applied to the assigned argument value.
-        ... (optional)       = When multiple values are assigned they are being joined with SEPARATOR (default=<space>).
-        =DEFAULT (optional)  = Specifies a default value which is being used when no value is assigned.
-
-    *) optional parts are denoted with curly braces and parts which can be repeated are marked with a tilde.
-    """
+    Codec = namedtuple('Codec', ['name', 'arguments'])
 
     def __init__(self, format_string: str, required):
         try:
-            assert(format_string.startswith("<") and format_string.endswith(">"))
-            self.format_string = format_string[1:-1] # Remove angle brackets
-            name, codecs, self.repeatable, self.default = re.findall(
-                r"<(\w+)((?::\w+)*)([^A-Za-z0-9]?\.\.\.)?(=[^>]+)?>", format_string).pop()
-            self.name = name.lower()
-            self.codecs = list(item.lower() for item in filter(None, codecs.split(":")))
-            self.default = self.default[1:] if self.default else None # Remove the equal-sign at the beginning.
-            self.required = required
+            data, self.start, self.end = format_string
+            self.name = data.get("name").lower()  # Required
+            self.codecs = [
+                PlaceholderFormat.Codec(codec[0].lower(), codec[1:]) for codec in data.get("codecs", [])]  # Optional
+            self.default = data.get("default")  # Optional
+            self.repeatable = "repeatable" in data  # True or False
+            self.required = required  # True or False
         except Exception:
             raise Exception("Transforming placeholders failed! Invalid format!")
-
-    def _get_delimiter(self):
-        """
-        Returns delimiter used when repeatable parts are joined (default = " ").
-
-        Example:
-
-            $ snippet -t "<arg...>" 1 2 3
-            1 2 3
-            $ snippet -t "<arg,...>" 1 2 3
-            1,2,3
-
-        """
-        return " " if not self.repeatable or len(self.repeatable) == 3 else self.repeatable[0]
 
     def __str__(self):
         return json.dumps(self.__dict__)
 
-    delimiter = property(_get_delimiter)
-
 
 class Data(defaultdict):
-    """
-     Map of placeholders with value lists e.g. { 'PLACEHOLDER-1': ('a','b','c'), 'PLACEHOLDER-2': ('d') }
-    """
+    """ Map of placeholders with value lists e.g. { 'PLACEHOLDER-1': ('a','b','c'), 'PLACEHOLDER-2': ('d') } """
 
     def __init__(self):
         super().__init__(list)
@@ -418,14 +444,20 @@ class Codec(object):
     """ Abstract codec class used for individual codecs. """
 
     def __init__(self, author, dependencies):
+        self.name = self.__class__.__name__
         self.author = author
         self.dependencies = dependencies
 
-    def name(self):
-        return self.__class__.__name__
-
-    def run(self, text):
+    def run(self, text, *args):
         pass
+
+
+class StringCodec(Codec):
+    pass
+
+
+class ListCodec(Codec):
+    pass
 
 
 class Config(object):
@@ -457,34 +489,23 @@ class Config(object):
 
     def _load_codecs(self):
 
-        def _to_camel_case(word):
-            return ''.join(x.capitalize() or '_' for x in word.split('_'))
-
         codecs = {}
         for codec_path in self.codec_paths:
             # Since the path may contain special characters which can not be processed by the __import__
             # function we temporary add the path in which the codecs are located to the PATH.
             if os.path.exists(codec_path):
-                dirs = []
-                for r, d, f in os.walk(codec_path):
-                    for dir in d:
-                        if not dir.startswith("__"):
-                            dirs.append(dir)
-
-                for dir in dirs:
-                    sys.path.append(safe_join_path(codec_path, dir))
-                    filepath = safe_join_path(codec_path, dir)
-                    for r, d, f in os.walk(filepath):
-                        for file in f:
-                            filename, ext = os.path.splitext(file)
-                            if ext == ".py":
-                                classname = str(_to_camel_case(filename))
-                                try:
-                                    self.logger.debug("Loading codec {} at {}...".format(filename, filepath))
-                                    codecs[filename] = getattr(__import__(filename), classname)()
-                                except Exception:
-                                    self.logger.warning("Loading codec {} failed!".format(filename))
-                    sys.path.pop()
+                sys.path.append(codec_path)
+                filepath = codec_path
+                for r, d, f in os.walk(filepath):
+                    for file in f:
+                        filename, ext = os.path.splitext(file)
+                        if ext == ".py":
+                            try:
+                                self.logger.debug("Loading codec {} at {}...".format(filename, filepath))
+                                codecs[filename] = getattr(__import__(filename), "Codec")()
+                            except Exception:
+                                self.logger.warning("Loading codec {} failed!".format(filename))
+                sys.path.pop()
 
         return codecs
 
@@ -508,9 +529,7 @@ class Config(object):
         return self.profile.editor
 
     def get_reserved_placeholders(self):
-        if self.profile:
-            return self.profile.placeholder_values
-        return []
+        return self.profile.placeholder_values if self.profile else []
 
     def get_reserved_placeholder_names(self):
         for reserved_placeholder in self.get_reserved_placeholders():
@@ -640,12 +659,61 @@ class PlaceholderValuePrintFormatter:
         return lines
 
 
+class CodecRunner:
+    """ Applies the codecs specified in the placeholder to the assigned values. """
+
+    def __init__(self, codecs):
+        self._codecs = codecs
+
+    def run(self, row_item, placeholder):
+        def run_codec(codec, input, arguments):
+            try:
+                expected_parameters = len(signature(codec.run).parameters) - 1  # do not count input
+                actual_parameters = 1 if isinstance(arguments, str) else len(arguments)
+                if expected_parameters != actual_parameters:
+                    raise Exception(
+                        "Expected {} parameters, got {}, {}!".format(expected_parameters, actual_parameters, arguments))
+                if isinstance(arguments, str):
+                    return codec.run(input, arguments)
+                elif len(arguments) == 0:
+                    return codec.run(input)
+                else:
+                    return codec.run(input, *arguments)
+            except Exception as err:
+                # Add the codec name to the exception message to know where this exception is coming from.
+                raise Exception("{}: {}".format(codec.name, '.'.join(err.args)))
+
+        if isinstance(row_item, list):  # Repeatable
+            values = row_item
+            for placeholder_codec in placeholder.codecs:
+                codec = self._codecs[placeholder_codec.name]
+                if isinstance(codec, StringCodec):
+                    values = [run_codec(codec, value, placeholder_codec.arguments) for value in values]
+                elif isinstance(codec, ListCodec):
+                    values = run_codec(codec, values, placeholder_codec.arguments)
+                else:
+                    values = [run_codec(codec, values, placeholder_codec.arguments)]
+            return " ".join(values)
+        else:
+            value = row_item
+            for placeholder_codec in placeholder.codecs:
+                codec = self._codecs[placeholder_codec.name]
+                if isinstance(codec, StringCodec):
+                    value = run_codec(codec, value, placeholder_codec.arguments)
+                elif isinstance(codec, ListCodec):
+                    value = " ".join(run_codec(codec, [value], placeholder_codec.arguments))
+                else:
+                    value = run_codec(codec, value, placeholder_codec.arguments)
+            return value
+
+
 class DataBuilder(object):
 
     def __init__(self, format_string, data, codec_formats, config):
         self.data = data
         self.config = config
         self.codec_formats = codec_formats
+        self._codec_runner = CodecRunner(config.codecs)
         self._format_string = format_string
         self._format_string_minified = self._minify_format_string(format_string)
         self._placeholders = PlaceholderFormatParser().parse(self._remove_comments(self._format_string_minified))
@@ -675,7 +743,7 @@ class DataBuilder(object):
 
         # Collect reserved placeholders (e.g. <datetime>).
         for parameter in self.config.get_reserved_placeholder_names():
-            parameters[parameter] = True # is never empty
+            parameters[parameter] = True  # is never empty
 
         return FormatStringParser(self.config).parse(format_string, parameters)
 
@@ -736,7 +804,8 @@ class DataBuilder(object):
             for placeholder_name in repeatable_placeholders:
                 # Store repeatable placeholder in table_data as list.
                 # Use different key to avoid overwriting placeholders which is not repeatable.
-                table_data.append(placeholder_name + "...", [[item for item in repeatable_placeholders[placeholder_name]]])
+                table_data.append(placeholder_name + "...",
+                                  [[item for item in repeatable_placeholders[placeholder_name]]])
 
         return table_data
 
@@ -746,21 +815,6 @@ class DataBuilder(object):
     def _get_placeholder_names(self):
         """ Returns a unique list of placeholder names. """
         return set([placeholder.name for placeholder in self.get_placeholders()])
-
-    def _apply_codecs(self, row_item, placeholder):
-        """ Applies the codecs specified in the placeholder to the assigned values. """
-        if isinstance(row_item, list):
-            values = []
-            for value in row_item:
-                for codec in placeholder.codecs:
-                    value = self.config.codecs[codec].run(value)
-                values.append(value)
-            return placeholder.delimiter.join(values)
-        else:
-            value = row_item
-            for codec in placeholder.codecs:
-                value = self.config.codecs[codec].run(value)
-            return value
 
     def _escape_brackets(self, str):
         if str:
@@ -781,9 +835,10 @@ class DataBuilder(object):
             placeholders = self.get_placeholders()
             for placeholder in placeholders:
                 for codec in placeholder.codecs:
-                    if codec not in self.config.codecs:
+                    if codec.name not in self.config.codecs:
                         raise Exception(
-                            "Parsing '{}' failed! Codec '{}' does not exist!".format(placeholder.format_string, codec))
+                            "Parsing '{}' failed! Codec '{}' does not exist!".format(
+                                self._format_string, codec.name))
 
             for placeholder in placeholders:
                 if placeholder.name not in self.data.keys() and placeholder.default:
@@ -798,11 +853,12 @@ class DataBuilder(object):
             # Get all required placeholders which are not assigned. Also consider repeatables (see transform_data).
             unset_placeholders = OrderedDict.fromkeys([
                 placeholder.name for placeholder in self.get_placeholders()
-                    if placeholder.name not in data_frame.keys() and
-                       placeholder.required and
-                       placeholder.name + "..." not in data_frame.keys()])
+                if placeholder.name not in data_frame.keys() and
+                   placeholder.required and
+                   placeholder.name + "..." not in data_frame.keys()])
             if unset_placeholders:
-                raise Exception("Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
+                raise Exception(
+                    "Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
 
             length = len(data_frame[list(data_frame.keys())[0]]) if data_frame.keys() else 0
             if length == 0:
@@ -812,30 +868,31 @@ class DataBuilder(object):
                 for i in range(0, length):
                     # Replace placeholders in format string with values.
                     output_line = self._format_string_minified
-                    for placeholder in self.get_placeholders():
+                    for placeholder in reversed(self.get_placeholders()):
                         row = data_frame[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
-                        value = self._apply_codecs(row[i], placeholder)
+                        value = self._codec_runner.run(row[i], placeholder)
                         lines = []
                         for line in output_line.splitlines():
                             if line.startswith("#"):
                                 lines.append(line)
                             else:
-                                lines.append(line.replace(
-                                    "<" + placeholder.format_string + ">", self._escape_brackets(value)))
+                                lines.append(replace_within(line, self._escape_brackets(value),
+                                                            placeholder.start, placeholder.end))
                         output_line = os.linesep.join(lines)
 
                     result.append(output_line)
+
+        # Check whether there are still unmatched placeholders in the result. Ignore escaped angle brackets.
+        for line in result:
+            for item in re.findall(r"([\\]?<.*>)", line):
+                if item.startswith('\\<') and item.endswith('\\>'):
+                    continue
+                raise Exception("Invalid placeholder format: {}".format(item))
 
         return [self._unescape_brackets(line) for line in result]
 
 
 class Snippet(object):
-
-    class ImportEnvironmentMode(Enum):
-        default = 1
-        append = 2
-        replace = 3
-        ignore = 4
 
     def __init__(self, config: Config):
         self._format_string = ""
@@ -859,7 +916,7 @@ class Snippet(object):
         last_assigned_placeholder = None
         for data_value in data_values:
             if data_value:  # Ignore empty string arguments (e.g. ""); use "arg=" instead
-                for assigned_placeholder, assigned_values in FormatArgumentParser().parse(data_value).items():
+                for assigned_placeholder, assigned_values in ArgumentFormatParser().parse(data_value).items():
                     if assigned_placeholder:
                         # $ snippet -f "<arg>" arg=val
                         placeholder = assigned_placeholder
@@ -906,8 +963,10 @@ class Snippet(object):
             home_template_dir = os.path.dirname(home_template_file)
             os.makedirs(home_template_dir, exist_ok=True)
             if os.path.isfile(app_template_file):
-                # If template exists in app path, do not edit here
-                # Instead make copy to home path and edit this file
+                # App files should not be altered.
+                # If template exists in app path, do not edit here.
+                # Instead make copy to home path and edit this file.
+                # Templates in home path override templates in app path.
                 shutil.copyfile(app_template_file, home_template_file)
 
             if format_string:
@@ -919,11 +978,8 @@ class Snippet(object):
         except:
             raise Exception("Creating template '{}' failed!".format(template_name))
 
-    def use_template(self, template_name):
-        format_template_name, format_string = self.config.get_format_template(template_name)
-        self.logger.info(colorize("Template:", Fore.YELLOW))
-        self.logger.info(colorize("   {}".format(format_template_name), Fore.WHITE))
-        return format_string
+    def get_template(self, template_name):
+        return self.config.get_format_template(template_name)
 
     def list_templates(self, filter_string=None):
         template_names = self.config.get_format_template_names()
@@ -971,22 +1027,12 @@ class Snippet(object):
                 unset_placeholders.append(placeholder)
         return unset_placeholders
 
-    def import_environment(self, mode=ImportEnvironmentMode.default):
+    def import_environment(self):
         """
         Import values found in environment variables which name match the placeholder names found in the format string.
-
-        There are 4 modes how environment variables are going to be processed:
-
-            default: An environment variable matching a placeholder is only loaded when no value is assigned yet.
-             append: An environment variable matching a placeholder is appended to the current list of assigned values.
-            replace: An environment variable matching a placeholder replaces the current list of assigned values.
-             ignore: No environment variables are imported.
+        Note, that an environment variable matching a placeholder is only loaded when no value is assigned yet.
         """
 
-        if mode == Snippet.ImportEnvironmentMode.ignore:
-            return
-
-        placeholders = self.list_placeholders()
         reserved_placeholders = self.config.get_reserved_placeholder_values().keys()
 
         def _import_environment(placeholder, data):
@@ -1003,24 +1049,11 @@ class Snippet(object):
                 # by other applications.
                 continue
 
-            if mode == Snippet.ImportEnvironmentMode.default:
-                # Only set environment data when not already defined
-                if placeholder not in self.data:
-                    _import_environment(placeholder, data)
-            elif mode == Snippet.ImportEnvironmentMode.append:
+            # Only set environment data when not already defined
+            if placeholder not in self.data:
                 _import_environment(placeholder, data)
-            elif mode == Snippet.ImportEnvironmentMode.replace:
-                if placeholder not in reserved_placeholders:
-                    self.data[placeholder] = []
-                    _import_environment(placeholder, data)
 
     def build(self):
-        self.logger.info(colorize("Format:", Fore.YELLOW))
-        for line in self.format_string.split(os.linesep):
-            if line.startswith("#"):
-                self.logger.info(colorize("   {}".format(line), Fore.BLUE))
-            else:
-                self.logger.info(colorize("   {}".format(line), Fore.WHITE))
         return DataBuilder(self._get_format_string(), self.data, self.codec_formats, self.config).build()
 
     format_string = property(_get_format_string, _set_format_string)
@@ -1043,12 +1076,12 @@ def main():
     Placeholder presets:
     
 """ + os.linesep.join(["  {}  {}".format(("<" + x.name + ">").rjust(20, ' '), x.description) for x in
-                           config.get_reserved_placeholders()]) + """
+                       config.get_reserved_placeholders()]) + """
 
     Codecs:
     
-""" + os.linesep.join(["  {}  {}".format(x.rjust(20, ' '), config.codecs[x].__doc__.splitlines()[1].strip()) for x in
-                           config.codecs.keys()]) + """
+""" + os.linesep.join(["  {}  {}".format(x.rjust(20, ' '), config.codecs[x].__doc__.strip()) for x in
+                       config.codecs.keys()]) + """
     
     Examples:
     
@@ -1077,10 +1110,10 @@ def main():
         $ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file:files.txt
         
         # Using optionals
-        $ snippet -f "python3 -m http.server[ --bind<lhost>][ <lport>]" lport=4444
+        $ snippet -f "python3 -m http.server[ --bind <lhost>][ <lport>]" lport=4444
         
         # Using defaults
-        $ snippet -f "python3 -m http.server[ --bind<lhost>] <lport=8000>"
+        $ snippet -f "python3 -m http.server[ --bind <lhost>] <lport=8000>"
         
         # Using codecs
         $ snippet -f "tar -czvf <archive:squote> <file:squote...>" /path/to/foo.tar file=foo bar
@@ -1098,7 +1131,8 @@ def main():
     parser.add_argument('-f', '--format-string', action="store", metavar="FORMAT_STRING",
                         dest='format_string',
                         help="The format of the data to generate. "
-                             "The placeholders are identified by less than (<) and greater than (>) signs.")
+                             "The placeholders are identified by angle brackets (<, >). "
+                             "Optional parts can be denoted using square brackets ([, ]).")
     parser.add_argument('-t', '--template', action="store", metavar="FILE",
                         dest='template_name',
                         help="The template to use as format string.") \
@@ -1151,7 +1185,7 @@ def main():
                 logger.warning("No codecs found!")
             for codec_name in codec_names:
                 print(codec_name)
-            sys.exit(9)
+            sys.exit(0)
 
         if arguments.format_string and arguments.template_name:
             raise Exception("--format-string can not be used in conjunction with --template!")
@@ -1164,7 +1198,8 @@ def main():
 
         format_string = arguments.format_string
         if arguments.template_name:
-            format_string = snippet.use_template(arguments.template_name)
+            format_template_name, format_string = snippet.get_template(arguments.template_name)
+            log_format_template(format_template_name, logger)
 
         if not sys.stdin.isatty():
             format_string = "".join(sys.stdin.readlines())
@@ -1178,7 +1213,7 @@ def main():
             if arguments.data_values:
                 snippet.arguments = arguments.data_values
 
-            snippet.import_environment(Snippet.ImportEnvironmentMode.default)
+            snippet.import_environment()
 
             if arguments.environment:
                 for line in snippet.list_environment():
@@ -1189,6 +1224,7 @@ def main():
             parser.print_usage(file=sys.stderr)
             sys.exit(1)
 
+        log_format_string(format_string, logger)
         for lines in snippet.build():
             # Handle format strings with line separators
             for line in lines.split(os.linesep):

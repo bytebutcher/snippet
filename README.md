@@ -4,6 +4,8 @@
 
 ## Usage
 
+![Snippet-Cli Preview](https://raw.githubusercontent.com/bytebutcher/snippet/master/snippet/images/preview.gif)
+
 ```
 # Add a new snippet to the database
 $ snippet -e archive/extract-tgz -f 'tar -xzvf <archive>'
@@ -50,7 +52,7 @@ $ snippet -f "python3 -m http.server[ --bind<lhost>] <lport=8000>"
 python3 -m http.server 8000
 
 # Using codecs
-$ snippet -f "tar -czvf <archive:squote> <file:squote...>" /path/to/foo.tar file=foo bar
+$ snippet -f "tar -czvf <archive|squote> <file:squote...>" /path/to/foo.tar file=foo bar
 tar -czvf '/path/to/foo.tar.gz' 'foo' 'bar'
 ```
 
@@ -207,12 +209,14 @@ parameter.
 ```snippet``` supports simple string transformation. A list of available codecs can be viewed by using the
 ```--list-codecs``` argument.
 
-To transform a placeholder use the ```<PLACEHOLDER[:CODEC ...]>``` format:
+To transform a placeholder use the ```<PLACEHOLDER[|CODEC[:ARGUMENT] ...]>``` format:
 ```
-$ snippet -f "<arg:b64>" "hello snippet"
+$ snippet -f "<arg|b64>" "hello snippet"
 aGVsbG8gcmV2YW1w
-$ snippet -f "<arg> <arg:b64:b64>" "hello snippet"
+$ snippet -f "<arg> <arg|b64|b64>" "hello snippet"
 hello snippet YUdWc2JHOGdjbVYyWVcxdw==
+$ snippet -f "<arg...|join:', '>!" arg=hello snippet
+hello, snippet!
 ```
 
 #### Using defaults
@@ -220,7 +224,7 @@ hello snippet YUdWc2JHOGdjbVYyWVcxdw==
 ```snippet``` supports specifying default values for your placeholders:
 
 ```
-$ snippet -f "<arg1> <arg2=default>" hello
+$ snippet -f "<arg1> <arg2='default'>" hello
 hello default
 ```
 
@@ -233,9 +237,9 @@ $ snippet -f "<arg1> [<arg2>]" hello snippet
 hello snippet
 $ snippet -f "<arg1> [<arg2>]" hello
 hello
-$ snippet -f "<arg> [my <arg2=snippet>]" hello
+$ snippet -f "<arg> [my <arg2='snippet'>]" hello
 hello my snippet
-$ snippet -f "<arg> [my <arg2=snippet>]" hello arg2=
+$ snippet -f "<arg> [my <arg2='snippet'>]" hello arg2=
 hello
 ```
 
@@ -253,7 +257,7 @@ If you specify multiple values for placeholders `snippet` will print all possibl
 Since this is not always the thing you wanna do `snippet` allows marking placeholders as repeatable.
 This is done by placing three dots at the end of a placeholder. By default arguments which are
 associated with a repeatable placeholder are separated by space. 
-However, it is also possible to specify a custom character as separator:
+To specify a custom character sequence you may use the `join` codec:
 
 ```
 $ snippet -f "<arg1>" hello world
@@ -261,7 +265,7 @@ hello
 world
 $ snippet -f "<arg1...>" hello world
 hello world
-$ snippet -f "<arg1,...>" hello world
+$ snippet -f "<arg1...|join:','>" hello world
 hello,world
 ``` 
 
