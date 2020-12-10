@@ -4,7 +4,7 @@
 
 ## Usage
 
-![Snippet-Cli Preview](https://raw.githubusercontent.com/bytebutcher/snippet/master/snippet/images/preview.gif)
+![Snippet-Cli Preview](https://raw.githubusercontent.com/bytebutcher/snippet/master/images/preview.gif)
 
 ```
 # Add a new snippet to the database
