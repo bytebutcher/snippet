@@ -23,7 +23,7 @@ extra_files = package_files('snippet/.snippet')
 # This call to setup() does all the work
 setup(
     name="snippet-cli",
-    version="2.0.0",
+    version="2.0.1",
     description="An advanced snippet manager for the command-line.",
     long_description=README,
     long_description_content_type="text/markdown",
