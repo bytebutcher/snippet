@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import codecs
 import json
 from inspect import signature
 
@@ -91,33 +92,71 @@ def print_line(line):
 
 class Logger:
 
+    # Static logger instance
+    _instance = None
+
+    @staticmethod
+    def get_instance():
+        if Logger._instance is None:
+            raise ValueError("Logger instance not initialized. Call initialize first.")
+        return Logger._instance
+
+    @staticmethod
+    def initialize(app_id, log_format, level):
+        if Logger._instance is not None:
+            raise ValueError("Logger instance already initialized.")
+        Logger._instance = Logger(app_id, log_format, level)
+        return Logger._instance
+
     def __init__(self, app_id, log_format, level):
-        self._logger = logging.getLogger(app_id)
-        self._handler = logging.StreamHandler(sys.stderr)
-        self._handler.setFormatter(logging.Formatter(log_format))
-        self._logger.addHandler(self._handler)
+        self.logger = logging.getLogger(app_id)
+        self.handler = logging.StreamHandler(sys.stderr)
+        self.handler.setFormatter(logging.Formatter(log_format))
+        self.logger.addHandler(self.handler)
         self._set_level(level)
 
     def _set_level(self, level):
-        self._logger.setLevel(level)
-        self._handler.setLevel(level)
+        self.logger.setLevel(level)
+        self.handler.setLevel(level)
 
     def _get_level(self):
-        return self._logger.level
+        return self.logger.level
 
-    def info(self, msg):
-        self._logger.info(colorize(" INFO: ", Fore.GREEN) + msg)
+    def info(self, message):
+        self.logger.info(colorize(" INFO: ", Fore.GREEN) + message)
 
-    def debug(self, msg):
-        self._logger.debug(colorize("DEBUG: {}".format(msg), Fore.LIGHTBLACK_EX))
+    def debug(self, message):
+        self.logger.debug(colorize("DEBUG: {}".format(message), Fore.LIGHTBLACK_EX))
 
-    def warning(self, msg):
-        self._logger.warning(colorize(" WARN: ", Fore.LIGHTYELLOW_EX) + msg)
+    def warning(self, message):
+        self.logger.warning(colorize(" WARN: ", Fore.LIGHTYELLOW_EX) + message)
 
-    def error(self, msg):
-        self._logger.info(colorize("ERROR: ", Fore.RED) + msg)
+    def error(self, message):
+        self.logger.info(colorize("ERROR: ", Fore.RED) + message)
 
     level = property(fset=_set_level, fget=_get_level)
+
+
+def log_method_call():
+    """
+    A decorator for logging method or function calls.
+
+    It logs the name of the method/function and its arguments before the call is executed.
+    Can be applied to both standalone functions and class methods.
+    """
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            logger = Logger.get_instance()
+            args_repr = [repr(a) for a in args]
+            kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+            signature = ", ".join(args_repr + kwargs_repr)
+            logger.debug(f"Calling {func.__name__}({signature})")
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class EscapedBracketCodec:
@@ -466,7 +505,7 @@ class Config(object):
         self.paths = paths
         self.format_template_paths = [safe_join_path(path, "templates") for path in paths]
         self.codec_paths = [safe_join_path(path, "codecs") for path in paths]
-        self.logger = Logger(app_name, "%(msg)s", log_level)
+        self.logger = Logger.initialize(app_name, "%(msg)s", log_level)
         self.profile = self._load_profile()
         self.codecs = self._load_codecs()
         self._reserved_placeholder_values = []
@@ -478,7 +517,7 @@ class Config(object):
                 try:
                     self.logger.debug("Loading profile at {} ...".format(profile_path))
                     # Since the path may contain special characters which can not be processed by the __import__
-                    # function we temporary add the path in which the profile.py is located to the PATH.
+                    # function we temporarily add the path in which the profile.py is located to the PATH.
                     sys.path.append(profile_path)
                     profile = __import__("snippet_profile").Profile()
                     sys.path.pop()
@@ -492,7 +531,7 @@ class Config(object):
         codecs = {}
         for codec_path in self.codec_paths:
             # Since the path may contain special characters which can not be processed by the __import__
-            # function we temporary add the path in which the codecs are located to the PATH.
+            # function we temporarily add the path in which the codecs are located to the PATH.
             if os.path.exists(codec_path):
                 sys.path.append(codec_path)
                 filepath = codec_path
@@ -581,7 +620,6 @@ class Config(object):
 
         try:
             with open(format_template_file) as f:
-                comments = []
                 lines = []
                 for line in f.read().splitlines():
                     lines.append(line)
@@ -747,7 +785,7 @@ class DataBuilder(object):
 
         return FormatStringParser(self.config).parse(format_string, parameters)
 
-    def transform_data(self):
+    def transform_data(self) -> Data:
         """
         Transforms the data from a map of placeholders with value lists into a data frame.
         """
@@ -828,68 +866,104 @@ class DataBuilder(object):
         else:
             return str
 
-    def build(self):
+    def _replace_placeholders_in_line(self, line, placeholders, data_frame, line_start, line_end, iteration):
+        for placeholder in reversed(placeholders):
+            if line_start <= placeholder.start < line_end:
+                adjusted_start = placeholder.start - line_start
+                adjusted_end = placeholder.end - line_start
+                row = data_frame[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
+                value = self._codec_runner.run(row[iteration], placeholder)
+                line = replace_within(line, self._escape_brackets(value), adjusted_start, adjusted_end)
+
+        return line
+
+    def _process_format_string(self, format_string, data_frame, placeholders):
         result = []
-        if self._format_string_minified:
+        # Determine the number of outputs to be generated
+        num_iterations = len(next(iter(data_frame.values()), []))
 
-            placeholders = self.get_placeholders()
-            for placeholder in placeholders:
-                for codec in placeholder.codecs:
-                    if codec.name not in self.config.codecs:
-                        raise Exception(
-                            "Parsing '{}' failed! Codec '{}' does not exist!".format(
-                                self._format_string, codec.name))
+        if not num_iterations:
+            self.config.logger.debug('No placeholders defined or already set through optionals...')
+            # Handling scenarios with no dynamic placeholders or placeholders already set:
+            # Example 1: snippet -f "abc def" -> Output: "abc def"
+            # Example 2: snippet -f "a[b<arg1='test'>b]a" arg1= -> Output: "aa"
+            # Example 3: snippet -f "abc [<arg1> <arg2>]" arg1=test -> Output: "abc "
+            return [format_string]
 
-            for placeholder in placeholders:
-                if placeholder.name not in self.data.keys() and placeholder.default:
-                    self.data.append(placeholder.name, placeholder.default)
+        # Processing format_string multiple times for each set of values in data_frame:
+        # Example 1: snippet -f "<arg>" arg=1 -> Output: "1"
+        # Example 2: snippet -f "<arg>" arg=1 arg=2 -> Outputs: "1", "2"
+        for iteration in range(num_iterations):
+            line_start = 0
+            processed_lines = []
 
-            data_frame = self.transform_data()
+            # Iterate over each line in format_string for processing
+            for line in format_string.splitlines(keepends=True):
+                if not line.startswith("#"):
+                    # Replace placeholders in non-comment lines
+                    line_end = line_start + len(line)
+                    line = self._replace_placeholders_in_line(line, placeholders, data_frame, line_start, line_end, iteration)
+                    line_start = line_end
 
-            # Print all placeholders and the assigned values (verbose).
-            for line in PlaceholderValuePrintFormatter.build(self._remove_comments(self._format_string), data_frame):
-                self.config.logger.info(line)
+                processed_lines.append(line)
 
-            # Get all required placeholders which are not assigned. Also consider repeatables (see transform_data).
-            unset_placeholders = OrderedDict.fromkeys([
-                placeholder.name for placeholder in self.get_placeholders()
-                if placeholder.name not in data_frame.keys() and
-                   placeholder.required and
-                   placeholder.name + "..." not in data_frame.keys()])
-            if unset_placeholders:
-                raise Exception(
-                    "Missing data for {}!".format(', '.join(["<" + item + ">" for item in unset_placeholders])))
+            result.append(''.join(processed_lines))
 
-            length = len(data_frame[list(data_frame.keys())[0]]) if data_frame.keys() else 0
-            if length == 0:
-                # No placeholders are defined in the format string.
-                result.append(self._format_string_minified)
-            else:
-                for i in range(0, length):
-                    # Replace placeholders in format string with values.
-                    output_line = self._format_string_minified
-                    for placeholder in reversed(self.get_placeholders()):
-                        row = data_frame[placeholder.name + "..." if placeholder.repeatable else placeholder.name]
-                        value = self._codec_runner.run(row[i], placeholder)
-                        lines = []
-                        for line in output_line.splitlines():
-                            if line.startswith("#"):
-                                lines.append(line)
-                            else:
-                                lines.append(replace_within(line, self._escape_brackets(value),
-                                                            placeholder.start, placeholder.end))
-                        output_line = os.linesep.join(lines)
+        return result
 
-                    result.append(output_line)
+    def _validate_codecs(self, placeholders):
+        for placeholder in placeholders:
+            for codec in placeholder.codecs:
+                if codec.name not in self.config.codecs:
+                    raise Exception(f"Parsing '{self._format_string}' failed! Codec '{codec.name}' does not exist!")
 
-        # Check whether there are still unmatched placeholders in the result. Ignore escaped angle brackets.
-        for line in result:
-            for item in re.findall(r"([\\]?<.*>)", line):
-                if item.startswith('\\<') and item.endswith('\\>'):
-                    continue
-                raise Exception("Invalid placeholder format: {}".format(item))
+    def _assign_defaults(self, placeholders):
+        for placeholder in placeholders:
+            if placeholder.name not in self.data.keys() and placeholder.default:
+                self.data.append(placeholder.name, placeholder.default)
 
-        return [self._unescape_brackets(line) for line in result]
+    def _log_placeholder_values(self, data_frame):
+        for output in PlaceholderValuePrintFormatter.build(self._remove_comments(self._format_string), data_frame):
+            self.config.logger.info(output)
+
+    def _validate_required_placeholders(self, placeholders, data_frame):
+        # Get all required placeholders which are not assigned. Also consider repeatables (see transform_data).
+        unset_placeholders = OrderedDict.fromkeys([
+            placeholder.name for placeholder in placeholders
+            if placeholder.name not in data_frame.keys() and
+               placeholder.required and
+               placeholder.name + "..." not in data_frame.keys()])
+
+        if unset_placeholders:
+            missing_placeholders = ', '.join(f"<{name}>" for name in unset_placeholders)
+            raise Exception(f"Missing data for {missing_placeholders}!")
+
+    def _check_for_unmatched_placeholders(self, processed_output):
+        # Check for unmatched placeholders in each output, ignoring comments and escaped angle brackets.
+        for output in processed_output:
+            output_string = ''.join(line for line in output.splitlines() if not line.startswith('#'))
+            placeholders = re.findall(r"([\\]?<.*?>)", output_string)
+            unescaped_placeholders = [item for item in placeholders if
+                                      not (item.startswith('\\<') and item.endswith('\\>'))]
+
+            if unescaped_placeholders:
+                raise Exception(f"Invalid placeholder format: {unescaped_placeholders[0]}")
+
+    def build(self):
+        if not self._format_string_minified:
+            return []
+
+        placeholders = self.get_placeholders()
+        self._assign_defaults(placeholders)
+        self._validate_codecs(placeholders)
+
+        data_frame = self.transform_data()
+        self._log_placeholder_values(data_frame)
+        self._validate_required_placeholders(placeholders, data_frame)
+        processed_output = self._process_format_string(self._format_string_minified, data_frame, placeholders)
+        self._check_for_unmatched_placeholders(processed_output)
+
+        return [self._unescape_brackets(line) for line in processed_output]
 
 
 class Snippet(object):
@@ -1207,7 +1281,8 @@ def main():
         if not format_string:
             format_string = os.environ.get("FORMAT_STRING")
 
-        snippet.format_string = format_string
+        # Make sure that escape sequences like \n, \t, etc. are handled correctly.
+        snippet.format_string = codecs.decode(format_string or '', 'unicode_escape')
         if snippet.format_string:
 
             if arguments.data_values:
@@ -1227,7 +1302,7 @@ def main():
         log_format_string(format_string, logger)
         for lines in snippet.build():
             # Handle format strings with line separators
-            for line in lines.split(os.linesep):
+            for line in lines.splitlines():
                 print_line(line)
         sys.exit(0)
     except Exception as e:

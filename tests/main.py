@@ -28,6 +28,17 @@ class TestSnippet(unittest.TestCase):
     def test_simple_placeholders(self):
         self.assertEqual(new_snippet("abc <arg1> <arg2> def", ["arg1=test", "arg2=tset"]), ["abc test tset def"])
 
+    def test_simple_multiline_placeholders(self):
+        self.assertEqual(new_snippet("abc <arg1>\n<arg2> def", ["arg1=test", "arg2=tset"]), ["abc test\ntset def"])
+
+    def test_simple_multiline_placeholders_with_comments(self):
+        self.assertEqual(new_snippet("abc <arg1>\n#no replace <arg1> or <arg2>\n<arg2> def", ["arg1=test", "arg2=tset"]), ["abc test\n#no replace <arg1> or <arg2>\ntset def"])
+
+    def test_simple_multiline_placeholders_ignore_placeholders_in_comments(self):
+        self.assertEqual(
+            new_snippet("abc <arg1>\n#no replace <argx> or <argy>\n<arg2> def", ["arg1=test", "arg2=tset"]),
+            ["abc test\n#no replace <argx> or <argy>\ntset def"])
+
     def test_placeholder_empty_value(self):
         self.assertEqual(new_snippet("abcX<arg1>Ydef", ["arg1="]), ["abcXYdef"])
 
