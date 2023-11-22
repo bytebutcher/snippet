@@ -23,7 +23,7 @@ extra_files = package_files('snippet/.snippet')
 # This call to setup() does all the work
 setup(
     name="snippet-cli",
-    version="2.0.1",
+    version="2.1.0",
     description="An advanced snippet manager for the command-line.",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -39,10 +39,10 @@ setup(
     package_data={'snippet': extra_files},
 	include_package_data=True,
     install_requires=[
-        'pyparsing==2.4.7',
-        'argcomplete==1.12.2',
-        'iterfzf==0.5.0.20.0',
-        'colorama==0.4.4'
+        'pyparsing==3.1.1',
+        'argcomplete==3.1.6',
+        'iterfzf==1.1.0.44.0',
+        'colorama==0.4.6'
     ],
     entry_points={
         "console_scripts": [
