@@ -1,4 +1,4 @@
-from snippet.snippet import StringCodec
+from snippet.codecs import StringCodec
 from datetime import datetime
 
 

@@ -1,6 +1,6 @@
 import re
 
-from snippet.snippet import StringCodec
+from snippet.codecs import StringCodec
 
 
 class Codec(StringCodec):

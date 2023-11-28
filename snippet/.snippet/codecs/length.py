@@ -1,4 +1,4 @@
-from snippet.snippet import Codec
+from snippet.codecs import Codec
 
 
 class Codec(Codec):
