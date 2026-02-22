@@ -252,10 +252,16 @@ def main():
         $ snippet -f "python3 -m http.server[ --bind <lhost>][ <lport>]" lport=4444
 
         # Using defaults
-        $ snippet -f "python3 -m http.server[ --bind <lhost>] <lport=8000>"
+        $ snippet -f "python3 -m http.server[ --bind <lhost>] <lport='8000'>"
+
+        # Overwriting defaults
+        $ snippet -f "python3 -m http.server[ --bind <lhost>] <lport='8000'>" lport=9090
 
         # Using codecs
-        $ snippet -f "tar -czvf <archive:squote> <file:squote...>" /path/to/foo.tar file=foo bar
+        $ snippet -f "tar -czvf <archive|squote> <file...|squote>" /path/to/foo.tar file=foo bar
+
+        # Using multiple codecs with arguments
+        $ snippet -f "cp <file|squote> <file...|add:'.bak'|squote>" /path/to/foo /path/to/bar
         """
     )
     parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',

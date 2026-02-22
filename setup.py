@@ -40,9 +40,9 @@ setup(
     package_data={'snippet': extra_files},
 	include_package_data=True,
     install_requires=[
-        'pyparsing==3.1.1',
-        'argcomplete==3.1.6',
-        'iterfzf==1.1.0.44.0',
+        'pyparsing>=3.3.2,<4',
+        'argcomplete>=3.6.3,<4',
+        'iterfzf==1.9.0.67.0',
         'colorama==0.4.6'
     ],
     extras_require={
