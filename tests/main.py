@@ -155,7 +155,7 @@ class TestSnippet(unittest.TestCase):
         ])
 
     ####################################################################################################################
-    # Codecs
+    # Codecs - Test Cases For Individual Codecs Can Be Found Within The tests/codecs Folder
     ####################################################################################################################
 
     def test_codec(self):
