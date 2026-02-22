@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import codecs
+import codecs as _codecs
 import json
 from inspect import signature
 
@@ -213,47 +213,47 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
     Placeholder presets:
-    
+
 """ + os.linesep.join(["  {}  {}".format(("<" + x.name + ">").rjust(20, ' '), x.description) for x in
                        config.get_reserved_placeholders()]) + """
 
     Codecs:
-    
+
 """ + os.linesep.join(["  {}  {}".format(x.rjust(20, ' '), config.codecs[x].__doc__.strip()) for x in
                        config.codecs.keys()]) + """
-    
+
     Examples:
-    
+
         # Add a new snippet to the database
         $ snippet -e archive/extract-tgz -f 'tar -xzvf <archive>'
-        
+
         # Edit a snippet (will open vim)
         $ snippet -e archive/extract-tgz
-             
+
         # Search a snippet which include the term "extract" (will open fzf)
         $ snippet -t extract
-        
+
         # Fill snippet with a value
         $ snippet -t archive/extract-tgz /path/to/foo.tar.gz
-        
+
         # Fill snippet with multiple values
         $ snippet -t archive/extract-tgz /path/to/foo.tar.gz /path/to/bar.tar.gz
-        
+
         # Fill snippet with multiple values while using repeatable placeholders (e.g. <file...>)
         $ snippet -f "tar -czvf <archive> <file...>" /path/to/foo.tar file=foo bar
-        
+
         # Using presets (e.g. '<datetime>' to include current datetime)
         $ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file=foo bar
-        
+
         # Import values from file
         $ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file:files.txt
-        
+
         # Using optionals
         $ snippet -f "python3 -m http.server[ --bind <lhost>][ <lport>]" lport=4444
-        
+
         # Using defaults
         $ snippet -f "python3 -m http.server[ --bind <lhost>] <lport=8000>"
-        
+
         # Using codecs
         $ snippet -f "tar -czvf <archive:squote> <file:squote...>" /path/to/foo.tar file=foo bar
         """
@@ -347,7 +347,7 @@ def main():
             format_string = os.environ.get("FORMAT_STRING")
 
         # Make sure that escape sequences like \n, \t, etc. are handled correctly.
-        snippet.format_string = codecs.decode(format_string or '', 'unicode_escape')
+        snippet.format_string = _codecs.decode(format_string or '', 'unicode_escape')
         if snippet.format_string:
 
             if arguments.data_values:

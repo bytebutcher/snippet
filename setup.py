@@ -18,7 +18,7 @@ def package_files(directory):
     return paths
 
 # The directory containing the profile and codecs
-extra_files = package_files('snippet/.snippet')
+extra_files = package_files('src/snippet/.snippet')
 
 # This call to setup() does all the work
 setup(
@@ -35,7 +35,8 @@ setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent"
     ],
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(where='src'),
+    package_dir={'': 'src'},
     package_data={'snippet': extra_files},
 	include_package_data=True,
     install_requires=[
@@ -44,6 +45,9 @@ setup(
         'iterfzf==1.1.0.44.0',
         'colorama==0.4.6'
     ],
+    extras_require={
+        'test': ['parameterized'],
+    },
     entry_points={
         "console_scripts": [
             "snippet=snippet:main",

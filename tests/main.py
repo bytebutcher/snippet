@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from parameterized import parameterized
 
-from snippet.snippet import Config, Snippet, app_name, home_config_path, app_config_path
+from snippet import Config, Snippet, app_name, home_config_path, app_config_path
 
 config = Config(app_name, [home_config_path, app_config_path], logging.DEBUG)
 
