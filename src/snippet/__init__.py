@@ -261,7 +261,7 @@ def main():
         $ snippet -f "tar -czvf <archive|squote> <file...|squote>" /path/to/foo.tar file=foo bar
 
         # Using multiple codecs with arguments
-        $ snippet -f "cp <file|squote> <file...|add:'.bak'|squote>" /path/to/foo /path/to/bar
+        $ snippet -f "cp <file|squote> <file|add:'.bak'|squote>" /path/to/foo /path/to/bar
         """
     )
     parser.add_argument('data_values', metavar='VALUE | PLACEHOLDER=VALUE | PLACEHOLDER:FILE', nargs='*',

@@ -1,1 +1,4 @@
-recursive-include snippet/.snippet/ *.py
+recursive-include src/snippet/.snippet/ *.py
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude *.pyo

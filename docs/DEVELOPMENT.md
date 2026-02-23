@@ -54,6 +54,18 @@ To run tests from the command line, issue the following command:
 python3 test.py
 ```
 
+### How to run integration tests using docker?
+
+To run integration tests using docker, issue the following command:
+```command
+# 1. Build the wheel
+python -m build
+
+# 2. Test against local wheel before publishing
+sudo docker build -f docker/Dockerfile --build-arg INSTALL="snippet_cli-2.3.1-py3-none-any.whl" -t snippet-cli .
+sudo docker run -it --rm --entrypoint test.sh snippet-cli
+```
+
 ## Publish
 
 Publish an application on PyPi usually follows the steps below:
@@ -64,9 +76,12 @@ Publish an application on PyPi usually follows the steps below:
 - **Step 4:** Upload to PyPi
 
 ### Step 1: Build Package
-**Important:** If you want to publish version 1.0.0 change the version in setup.py for your tests to 0.9.9.1 and increment the last digit for each test. If you are sure your package is working as expected use version 1.0.0.
+**Important:** 
+- Install the build tool: `pip3 install build`
+- Upgrade twine: `pip install --upgrade twine`
+- If you want to publish version 1.0.0 change the version in setup.py for your tests to 0.9.9.1 and increment the last digit for each test. If you are sure your package is working as expected use version 1.0.0.
 ```commandline
-rm -rf build/ *.egg-info/ dist/ && python3 setup.py sdist bdist_wheel && twine check dist/*
+rm -rf build/ src/*.egg-info/ dist/ && python3 -m build && twine check dist/*
 ```
 
 
