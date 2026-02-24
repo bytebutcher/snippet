@@ -376,6 +376,8 @@ def main():
             for line in lines.splitlines():
                 print_line(line)
         sys.exit(0)
+    except KeyboardInterrupt:
+        sys.exit(130)
     except Exception as e:
         logger.error(str(e))
         if arguments.debug:
