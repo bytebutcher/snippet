@@ -113,7 +113,10 @@ class Snippet(object):
                     f.write(format_string)
 
             subprocess.call((self.config.editor, home_template_file))
-            self.logger.info("Successfully created template '{}'!".format(template_name))
+            if os.path.isfile(home_template_file):
+                self.logger.info("Successfully created template '{}'!".format(template_name))
+            else:
+                self.logger.warning("Template creation aborted.")
         except:
             raise Exception("Creating template '{}' failed!".format(template_name))
 
