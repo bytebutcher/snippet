@@ -75,7 +75,11 @@ class Config(object):
         return None
 
     def _get_editor(self):
-        return self.profile.editor
+        editor = os.environ.get('EDITOR')
+        if editor:
+            return editor
+        else:
+            return self.profile.editor
 
     def get_reserved_placeholders(self):
         return self.profile.placeholder_values if self.profile else []
@@ -101,7 +105,7 @@ class Config(object):
         # Get templates from home or app directory.
         for format_template_file_path in self.format_template_paths:
             if os.path.exists(format_template_file_path):
-                exclude_extensions = ['.txt', '.md']
+                exclude_extensions = ['.txt', '.md', '.swp']
                 exclude_directories = ['.git']
                 for r, d, f in os.walk(format_template_file_path):
                     d[:] = [dir for dir in d if dir not in exclude_directories]
