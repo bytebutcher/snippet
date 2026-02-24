@@ -279,4 +279,5 @@ hello snippet
 ## See also
 
 To make the most out of this tool you might also consider to look into the following projects:
-* [bgl](https://github.com/bytebutcher/bgl) - manage global bash environment variables
+* [snex](https://github.com/bytebutcher/butchery/tree/main/linux) - previews and optionally executes snippets
+* [mkenv](https://github.com/bytebutcher/butchery/tree/main/linux) - creates and updates shell environment files
