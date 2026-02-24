@@ -53,9 +53,9 @@ $ snippet -f "cp <file|squote> <file|add:'.bak'|squote>" /path/to/foo /path/to/b
 pip3 install snippet-cli
 ```
 
-To enable bash-completion you might add following line to your .bashrc:
+To enable tab completion (e.g., for the `-t | --template` argument) you might want to add following line to your .bashrc:
 ```bash
-eval "$(register-python-argcomplete3 snippet)"
+eval "$(register-python-argcomplete snippet)"
 ```
 
 ## Advanced usage
