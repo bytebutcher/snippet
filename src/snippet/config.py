@@ -1,5 +1,6 @@
 import os
 import sys
+import shutil
 
 from iterfzf import iterfzf
 
@@ -19,7 +20,21 @@ class Config(object):
         self.codecs = self._load_codecs()
         self._reserved_placeholder_values = []
 
+    def _ensure_home_config(self):
+        """Copy default config files to ~/.snippet if not already present."""
+        try:
+            home_config_path, app_config_path = self.paths
+            os.makedirs(home_config_path, exist_ok=True)
+            for filename in ["snippet_profile.py"]:
+                src = os.path.join(app_config_path, filename)
+                dst = os.path.join(home_config_path, filename)
+                if not os.path.exists(dst) and os.path.exists(src):
+                    shutil.copyfile(src, dst)
+        except Exception as e:
+            self.logger.warning("Failed to initialize home config: {}".format(e))
+
     def _load_profile(self):
+        self._ensure_home_config()
         for profile_path in self.paths:
             profile_file = safe_join_path(profile_path, "snippet_profile" + ".py")
             if os.path.exists(profile_file):
@@ -75,11 +90,7 @@ class Config(object):
         return None
 
     def _get_editor(self):
-        editor = os.environ.get('EDITOR')
-        if editor:
-            return editor
-        else:
-            return self.profile.editor
+        return self.profile.editor
 
     def get_reserved_placeholders(self):
         return self.profile.placeholder_values if self.profile else []

@@ -1,10 +1,11 @@
+import os
 from datetime import datetime
 
 
 class Profile():
 
     # The default editor to use when creating/editing snippets
-    editor = "vim"
+    editor = os.environ.get("EDITOR", "vim")
 
     class PlaceholderValue(object):
 
