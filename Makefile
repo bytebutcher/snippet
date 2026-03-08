@@ -9,7 +9,7 @@ install-test:
 test:
 	python test.py
 
-test-integration: build
+test-integration: clean build
 	sudo docker build -f docker/Dockerfile --build-arg INSTALL="snippet_cli-*.*.*-py3-none-any.whl" -t snippet-cli .
 	sudo docker run -it --rm --entrypoint test.sh snippet-cli
 
@@ -25,10 +25,10 @@ build:
 	python3 -m build
 	twine check dist/*
 
-publish-test: build test test-integration
+publish-test: clean build test test-integration
 	twine upload -r testpypi dist/*
 
-publish: build test test-integration
+publish: clean build test test-integration
 	twine upload dist/*
 
 clean:
