@@ -138,13 +138,11 @@ class Snippet(object):
             return sorted(self.config.codecs.keys())
 
     def list_environment(self):
+        """ Returns placeholders as exportable shell variable declarations. """
         result = []
         temporary_data = Data()
         for placeholder in self.data.keys():
             temporary_data[placeholder] = self.data[placeholder]
-        reserved_placeholder_values = self.config.get_reserved_placeholder_values()
-        for placeholder in reserved_placeholder_values.keys():
-            temporary_data[placeholder] = reserved_placeholder_values[placeholder]
         for placeholder, values in temporary_data.items():
             if len(values) == 1:
                 result.append("export {}=\"{}\"".format(placeholder, values[0]))

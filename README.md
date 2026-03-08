@@ -129,17 +129,21 @@ tar -czvf '20250302143012.tar.gz' src/
 Customize presets in `~/.snippet/snippet_profile.py`.
 
 
-### Input from files, env vars, or pipes
+### Input from env vars, files, or pipes
 
 ```
-# From a file
+# Export variables to a sourceable env file
+$ snippet --env -f "tar -czvf <archive> <file...>" archive=backup.tar.gz file=src/ README.md | tee env.sh
+export archive="backup.tar.gz"
+export file="\('src/' 'README.md'\)"
+
+# Import environment variables from file
+$ source env.sh && snippet -f "tar -czvf <archive> <file...>"
+
+# Load variable values from a file
 $ snippet -f "tar -czvf <archive> <file...>" backup.tar.gz file:filelist.txt
 
-# From environment variables
-$ export archive=backup.tar.gz
-$ snippet -f "tar -czvf <archive> <file...>" file=src/ README.md
-
-# From a pipe
+# Load format string from a pipe
 $ echo "tar -czvf <archive> <file...>" | snippet backup.tar.gz file=src/
 ```
 
