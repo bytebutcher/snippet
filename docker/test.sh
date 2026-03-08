@@ -7,6 +7,19 @@
 PASS=0
 FAIL=0
 
+assert_file_exists() {
+    local description="$1"
+    local file_src="$2"
+    if [ -f "$file_src" ]; then
+        echo "[ PASS ] $description"
+        ((PASS++))
+    else
+        echo "[ FAIL ] $description"
+        echo "         actual   : $(echo "$file_src does not exist")"
+        ((FAIL++))
+    fi
+}
+
 assert_eq() {
     local description="$1"
     local expected="$2"
@@ -73,6 +86,15 @@ EOF
 # ======================================================================================================================
 # Test cases
 # ======================================================================================================================
+
+# --- Snippet profile --------------------------------------------------------------------------------------------------
+
+# Initialize snippet-cli (Note: config directory is initialized on first call)
+snippet -f '<datetime>'
+
+# Make sure that the snippet profile was copied to the local snippet config folder after initial run
+assert_file_exists "Snippet profile exists in config path" \
+  "$HOME/.snippet/snippet_profile.py"
 
 # --- Snippet database -------------------------------------------------------------------------------------------------
 
