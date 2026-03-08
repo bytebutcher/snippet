@@ -1,280 +1,222 @@
 # snippet
 
-```snippet``` allows you to create, view and use snippets on the command-line.
+Parameterized command templates for your terminal.
+
+Save commands once, reuse them forever — with placeholders, defaults, fuzzy search, and composable output.
 
 ## Usage
 
+```
+$ snippet -e archive/extract-tgz -f 'tar -xzvf <archive>'
+$ snippet -t archive/extract-tgz /path/to/foo.tar.gz
+tar -xzvf /path/to/foo.tar.gz
+```
+
 ![Snippet-Cli Preview](https://raw.githubusercontent.com/bytebutcher/snippet/master/images/preview.gif)
 
-```
-# Add a new snippet to the database
-$ snippet -e archive/extract-tgz -f 'tar -xzvf <archive>'
+## Why
 
-# Edit a snippet (will open vim)
-$ snippet -e archive/extract-tgz
+Shell aliases are static. 
+History search is fragile. 
+Neither lets you say "run this shape of command, but with *these* arguments this time."
 
-# Search a snippet which include the term "extract" (will open fzf)
-$ snippet -t extract
+snippet sits in between: 
+it stores command *templates* with named placeholders, and fills them on demand. 
+Think of it as ```printf``` for your shell history.
 
-# Fill snippet with a value
-$ snippet -t archive/extract-tgz /path/to/foo.tar.gz
-
-# Fill snippet with multiple values
-$ snippet -t archive/extract-tgz /path/to/foo.tar.gz /path/to/bar.tar.gz
-
-# Fill snippet with multiple values while using repeatable placeholders (e.g. <file...>)
-$ snippet -f "tar -czvf <archive> <file...>" /path/to/foo.tar file=foo bar
-
-# Using presets (e.g. '<datetime>' to include current datetime)
-$ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file=foo bar
-
-# Import values from file
-$ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file:files.txt
-
-# Using optionals
-$ snippet -f "python3 -m http.server[ --bind <lhost>][ <lport>]" lport=4444
-
-# Using defaults
-$ snippet -f "python3 -m http.server[ --bind <lhost>] <lport='8000'>"
-
-# Overwriting defaults
-$ snippet -f "python3 -m http.server[ --bind <lhost>] <lport='8000'>" lport=9090
-
-# Using codecs
-$ snippet -f "tar -czvf <archive|squote> <file...|squote>" /path/to/foo.tar file=foo bar
-
-# Using multiple codecs with arguments
-$ snippet -f "cp <file|squote> <file|add:'.bak'|squote>" /path/to/foo /path/to/bar
-```
-
-## Setup
+## Install
 
 ```
 pip3 install snippet-cli
 ```
 
-To enable tab completion (e.g., for the `-t | --template` argument) you might want to add following line to your .bashrc:
+Optional — enable tab completion for template names:
 ```bash
 eval "$(register-python-argcomplete snippet)"
 ```
 
-## Advanced usage
+## Quick start
 
-1. [Assigning data to placeholders](#Assigning-data-to-placeholders)
-   1. [Using positional arguments](#Using-positional-arguments)
-   2. [Using environment variables](#Using-environment-variables)
-   3. [Using presets](#Using-presets)
-2. [Using string formats](#Using-string-formats)
-   1. [Using on-the-fly transformation](#Using-the---format-string-argument)
-   2. [Using input from a pipe](#Using-input-from-a-pipe)
-   3. [Using templates](#Using-templates)
-   4. [Using defaults](#Using-defaults)
-   5. [Using optionals](#Using-optionals)
-   6. [Using codecs](#Using-codecs)
-3. [Executing commands](#Executing-commands)
-4. [See also](#See-also)
-
-
-### Assigning data to placeholders
-To assign data to a placeholder you have several options:
-
-#### Using positional arguments
-The most straight forward way of assigning data to a placeholder is to use positional arguments:
-
+### Save a command you'll reuse
 ```
-$ snippet -f "echo 'hello <arg1>';" snippet
-echo 'hello snippet';
+# Save or edit a snippet (opens $EDITOR)
+$ snippet -e archive/create-tgz -f "tar -czvf <archive> <file...>"
 ```
 
-To assign multiple values to a specific placeholder you need to explicitly declare the placeholder to which the
-value should be assigned to:
+### Recall it later
 ```
-$ snippet -f "echo '<arg1> <arg2>';" hello arg2=snippet world
-echo 'hello snippet';
-echo 'hello world';
-```
+# Exact match
+$ snippet -t archive/create-tgz backup.tar.gz file=src/ README.md
+tar -czvf backup.tar.gz src/ README.md
 
-#### Using input files
-
-Values can be directly imported from a file:
-```
-$ cat <<EOF > input.txt
-world
-universe
-EOF
-$ snippet -f "echo 'hello <arg1>';" arg1:input.txt
-echo 'hello world';
-echo 'hello universe';
+# Fuzzy search (opens fzf when no exact match)
+$ snippet -t archive
 ```
 
-#### Using environment variables
-
-```snippet``` evaluates environment variables and assigns data to any unset 
-placeholder. To avoid running into conflict with other environment variables ```snippet``` only evaluates 
-lower-case variable names:
+### Run it directly
 ```
-$ export arg1=snippet
-$ snippet -f "echo 'hello <arg1>';"
-echo 'hello snippet';
-```
-To assign multiple values to a placeholder following syntax must be used:
-```
-$ export arg1="\('snippet' 'world'\)"
-$ snippet -f "echo 'hello <arg1>';"
-echo 'hello snippet';
-echo 'hello world';
+$ snippet -t archive/create-tgz backup.tar.gz file=src/ README.md | bash
 ```
 
-Note that positional arguments may override the evaluation of environment variables:
-```
-$ export arg1=snippet
-$ snippet -f "echo 'hello <arg1>';" world
-echo 'hello world';
-```
+## Key Features
 
-#### Using presets
+### Permutations and Repeatables
 
-```snippet``` ships with a customizable set of preset placeholders which can be 
-directly used in your format string 
-(see ```.snippet/snippet_profile.py``` for more information). Preset placeholders may have constant  
-but also dynamically generated values assigned to them:
-```
-$ snippet -f "echo '<datetime>';" 
-echo '20200322034102';
-```
-
-### Using string formats
-
-To use string formats you have several options:
-
-#### Using the --format-string argument
-
-If you read the previous section you already know the ```-f | --format-string``` argument:
+When you pass multiple values to regular placeholders, snippet generates every combination:
 
 ```
-$ snippet -f "echo 'hello snippet';"
-echo 'hello snippet';
+$ snippet -f "kubectl cp <file> <namespace>/<pod>:/tmp/<file>" namespace=default pod=example-pod file=busybox nmap tcpdump
+kubectl cp busybox default/example-pod:/tmp/busybox
+kubectl cp nmap default/example-pod:/tmp/nmap
+kubectl cp tcpdump default/example-pod:/tmp/tcpdump
 ```
 
-#### Using input from a pipe
-
-Another option to set the string format is by using a pipe:
+When you add three dots at the end of a placeholder (e.g., `<file...>`), values are concatenated instead of permuted:
 ```
-$ echo "echo 'hello snippet'" | snippet
-echo 'hello snippet';
+$ snippet -f "tar -czvf <archive> <file...>" backup.tar.gz file=src/ README.md
+tar -czvf backup.tar.gz src/ README.md
 ```
 
-#### Using templates
-
-```snippet``` allows you to import format strings from a file by using the ```-t | --template``` argument.
-
-There are two ways of creating a template:
-
-1.  Create a file with the ```.snippet``` extension:
+By default arguments which are associated with a repeatable placeholder are separated by space. 
+To specify a custom character sequence you may use the `join` codec:
 ```
-$ echo -n "echo 'hello, <arg>!'" > example.snippet
-$ snippet -t example.snippet world!
+$ snippet -f "nmap -sS -p<port...|join:','> <rhost...>" port=80 443 rhost=192.168.0.1 192.168.0.2
+nmap -sS -p80,443 192.168.0.1 192.168.0.2
 ```
 
-2. Create a template using the ```-e | --edit``` argument:
+### Default and Optionals
 ```
-# Create a template called example with the specified string format
-$ snippet -e example -f "echo 'hello, <arg>!'"
-# Open vim to edit or add a new template
-$ snippet -e example world!
-# Use the template
-$ snippet -t example world!
-```
+# Default value — used when nothing is provided
+$ snippet -f "python3 -m http.server <lport='8000'>"
+python3 -m http.server 8000
 
-If you have bash-completion enabled you can press ```<TAB>``` twice to autocomplete 
-template names. 
-
-In addition the ```-t | --template``` argument will open an interactive search prompt 
-when the specified template name was not found.
-
-To list all available templates you can use the ```--list-templates```
-parameter.
-
-#### Using codecs
-
-```snippet``` supports simple string transformation. A list of available codecs can be viewed by using the
-```--list-codecs``` argument.
-
-To transform a placeholder use the ```<PLACEHOLDER[|CODEC[:ARGUMENT] ...]>``` format:
-```
-$ snippet -f "<arg|b64>" "hello snippet"
-aGVsbG8gcmV2YW1w
-$ snippet -f "<arg> <arg|b64|b64>" "hello snippet"
-hello snippet YUdWc2JHOGdjbVYyWVcxdw==
-$ snippet -f "<arg...|join:', '>!" arg=hello snippet
-hello, snippet!
+# Optional section — disappears entirely if placeholder is empty
+$ snippet -f "python3 -m http.server[ --bind <lhost>][ <lport>]" lport=4444
+python3 -m http.server 4444
 ```
 
-#### Using defaults
-
-```snippet``` supports specifying default values for your placeholders:
-
-```
-$ snippet -f "<arg1> <arg2='default'>" hello
-hello default
-```
-
-#### Using optionals
-
-```snippet``` supports specifying optional parts in the string format by surrounding them with 
-square-brackets:
-```
-$ snippet -f "<arg1> [<arg2>]" hello snippet
-hello snippet
-$ snippet -f "<arg1> [<arg2>]" hello
-hello
-$ snippet -f "<arg> [my <arg2='snippet'>]" hello
-hello my snippet
-$ snippet -f "<arg> [my <arg2='snippet'>]" hello arg2=
-hello
-```
-
-If you need square-brackets to be part of the string format you need to
-escape them accordingly:
-
+If you need square-brackets to be part of the string format you need to escape them accordingly:
 ```
 $ snippet -f "\[<arg>\]" hello
 [hello]
 ```
 
-#### Using repeatables
+### Codecs
 
-If you specify multiple values for placeholders `snippet` will print all possible permutations.
-Since this is not always the thing you wanna do `snippet` allows marking placeholders as repeatable.
-This is done by placing three dots at the end of a placeholder. By default arguments which are
-associated with a repeatable placeholder are separated by space. 
-To specify a custom character sequence you may use the `join` codec:
+Transform placeholder values with piped codecs. Useful when your archive paths contain spaces:
+```
+$ snippet -f "tar -czvf <archive|squote> <file...|squote>" backup.tar.gz file="my docs/" notes.md
+tar -czvf 'backup.tar.gz' 'my docs/' 'notes.md'
+```
+
+Codecs can be parameterized and are chainable:
+```
+$ snippet -f "cp <file|squote> <file|add:'.bak'|squote>" "/path/to/my file"
+cp '/path/to/my file' '/path/to/my file.bak'
+```
+
+Run `snippet --list-codecs` to see all available transforms.
+
+### Presets
+
+Built-in dynamic placeholders like `<datetime>` — handy for timestamped archives:
 
 ```
-$ snippet -f "<arg1>" hello world
-hello
-world
-$ snippet -f "<arg1...>" hello world
-hello world
-$ snippet -f "<arg1...|join:','>" hello world
-hello,world
-``` 
+$ snippet -f "tar -czvf '<datetime>.tar.gz' <file...>" file=src/
+tar -czvf '20250302143012.tar.gz' src/
+```
 
-### Executing commands
+Customize presets in `~/.snippet/snippet_profile.py`.
 
-```snippet``` can be used to easily execute alternating commands in sequence:
+
+### Input from files, env vars, or pipes
+
+```
+# From a file
+$ snippet -f "tar -czvf <archive> <file...>" backup.tar.gz file:filelist.txt
+
+# From environment variables
+$ export archive=backup.tar.gz
+$ snippet -f "tar -czvf <archive> <file...>" file=src/ README.md
+
+# From a pipe
+$ echo "tar -czvf <archive> <file...>" | snippet backup.tar.gz file=src/
+```
+
+## Organizing templates
+
+Templates live in `~/.snippet/templates/` and support directory-style namespacing:
+```
+$ snippet -e archive/create-tgz -f "tar -czvf <archive> <file...>"
+$ snippet -e archive/extract-tgz -f "tar -xzvf <archive>"
+$ snippet -e net/scan -f "nmap -sS -p <port> <host>"
+
+$ snippet --list-templates
+archive/create-tgz
+archive/extract-tgz
+net/scan
+```
+
+## Organizing codecs
+
+Custom codecs can be added into `~/.snippet/codecs/`. Here's a minimal example:
+
+```
+import os.path
+
+from snippet.codecs import StringCodec
+
+
+class Codec(StringCodec):
+    """ Extracts the filename from a file path. """
+
+    def __init__(self):
+        super().__init__(author="bytebutcher", dependencies=[])
+
+    def run(self, input):
+        return os.path.basename(input.encode('utf-8', errors="surrogateescape")).decode('utf-8', errors="surrogateescape")
+```
+
+## Advanced usage
+
+`snippet` supports multi-line format strings:
+
+```
+$ cat input.txt
+{
+   "foo": "<foo>",
+   "bar": "<bar>"
+}
+$ cat input.txt | snippet egg spam
+{
+   "foo": "egg",
+   "bar": "spam"
+}
+
+```
+`snippet` can be used to easily execute alternating commands in sequence:
 ```
 $ snippet -f "echo 'hello <arg1>';" arg1=snippet world | bash
 hello world
 hello snippet
 ```
 
-Using ```xargs``` the resulting commands can also be executed in parallel:
+Using `xargs` the resulting commands can also be executed in parallel:
 ```
 snippet -f "echo 'hello <arg1>';" arg1=snippet arg1=world | xargs --max-procs=4 -I CMD bash -c CMD
 hello world
 hello snippet
 ```
+
+
+## How it compares
+
+| Tool           | Purpose                                                                  |
+|----------------|--------------------------------------------------------------------------|
+| shell aliases  | Static command shortcuts; no parameters                                  |
+| `tldr` / `navi` | Look up cheat sheets                                                 |
+| `pet` / `cheat` | Save and search snippets; less focus on parameterization             |
+| **snippet**   | Save, parameterize, compose, and execute your own command templates |
 
 ## See also
 
