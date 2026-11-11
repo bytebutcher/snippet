@@ -252,3 +252,17 @@ class TestSnippet(unittest.TestCase):
     ])
     def test_invalid_format_string(self, format, arguments):
         self.assertRaises(Exception, lambda: new_snippet(format, arguments))
+
+
+class TestListCodecs(unittest.TestCase):
+
+    def test_list_codecs_without_filter_returns_all(self):
+        codecs = Snippet(config).list_codecs()
+        self.assertIn("upper", codecs)
+        self.assertGreater(len(codecs), 1)
+
+    def test_list_codecs_filter_matches_substring(self):
+        self.assertEqual(Snippet(config).list_codecs("upper"), ["upper"])
+
+    def test_list_codecs_filter_without_match_returns_empty(self):
+        self.assertEqual(Snippet(config).list_codecs("zzz-no-such-codec"), [])

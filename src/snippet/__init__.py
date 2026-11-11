@@ -133,7 +133,7 @@ class Snippet(object):
     def list_codecs(self, filter_string=None):
         if filter_string:
             return sorted([codec_name for codec_name in self.config.codecs.keys() if
-                           filter_string in self.config.codecs.keys()])
+                           filter_string in codec_name])
         else:
             return sorted(self.config.codecs.keys())
 
